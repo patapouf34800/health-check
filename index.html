@@ -286,7 +286,8 @@
           <label>Date</label>
           <input type="date" id="calcDate" onchange="saveData()">
         </div>
-        <button class="btn btn-green" onclick="validerJournee()" id="btnValider" style="margin-top:22px">✓ Valider la journée</button>
+        <button class="btn btn-green" onclick="validerJournee()" id="btnValider" style="margin-top:22px">+ Ajouter au total du jour</button>
+        <button class="btn btn-secondary" onclick="resetJour()" style="margin-top:22px;font-size:11px;padding:6px 12px">↺ Remettre à zéro le jour</button>
         <button class="btn btn-secondary" onclick="clearCalc()" style="margin-top:22px">🗑 Vider</button>
       </div>
       <p style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:12px">Le total sera automatiquement envoyé dans l'onglet Saisie.</p>
@@ -779,8 +780,8 @@ function validerJournee(){
   const label=new Date(dateVal).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
   const existing=days.findIndex(d=>d.date===dateVal);
   if(existing>=0){
-    if(!confirm(`Une entrée existe déjà pour le ${label} (${days[existing].calories} kcal).\nRemplacer par ${total} kcal ?`))return;
-    days[existing].calories=total;
+    // Additionne au lieu de remplacer
+    days[existing].calories += total;
   } else {
     days.push({date:dateVal,label,calories:total,objectif:getObjectif()});
     days.sort((a,b)=>a.date.localeCompare(b.date));
@@ -793,11 +794,22 @@ function validerJournee(){
   document.getElementById('calcDate').value=next.toISOString().split('T')[0];
   // Feedback bouton
   const btn=document.getElementById('btnValider');
-  btn.textContent='✓ Enregistré !';
+  btn.textContent='✓ Ajouté !';
   setTimeout(()=>{btn.textContent='✓ Valider la journée';},2000);
 }
 
 /* ── NAVIGATION ── */
+function resetJour(){
+  const dateVal=document.getElementById('calcDate').value;
+  if(!dateVal){alert('Merci de choisir une date.');return;}
+  const label=new Date(dateVal).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
+  const existing=days.findIndex(d=>d.date===dateVal);
+  if(existing<0){alert('Aucune entrée pour ce jour.');return;}
+  if(!confirm('Remettre à zéro les calories du '+label+' ?'))return;
+  days.splice(existing,1);
+  refresh(); saveData();
+}
+
 function showTab(id,btn){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
