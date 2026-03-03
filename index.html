@@ -143,6 +143,8 @@
     <button class="tab" onclick="showTab('calculateur',this)">Calculateur journée</button>
     <button class="tab" onclick="showTab('references',this)">Références</button>
     <button class="tab" onclick="showTab('tdee',this)">Besoin journalier</button>
+    <button class="tab" onclick="showTab('velo',this)">🚴 Vélo</button>
+    <button class="tab" onclick="showTab('saisievelo',this)">Saisie vélo</button>
   </div>
 </header>
 
@@ -311,12 +313,6 @@
         <button class="btn btn-secondary" onclick="resetJour()" style="margin-top:22px;font-size:11px;padding:6px 12px">↺ Remettre à zéro le jour</button>
         <button class="btn btn-secondary" onclick="clearCalc()" style="margin-top:22px">🗑 Vider</button>
       </div>
-      <div class="form-row" style="margin-top:10px">
-        <div class="form-group" style="max-width:420px">
-          <label>Note du jour <span style="color:rgba(255,255,255,0.3);font-size:11px">(optionnel)</span></label>
-          <input type="text" id="calcNote" placeholder="ex: repas de famille, stress, sport…" maxlength="120" style="width:100%">
-        </div>
-      </div>
       <p style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:12px">Le total sera automatiquement envoyé dans l'onglet Saisie.</p>
     </div>
   </div>
@@ -402,6 +398,48 @@
       <p style="font-size:11px;color:rgba(255,255,255,0.2);margin-top:16px">
         La formule de Mifflin-St Jeor est considérée comme la plus précise pour estimer le métabolisme de base (MB). Le TDEE = MB × coefficient d'activité. Ces valeurs sont des estimations — la réalité peut varier selon la génétique, la masse musculaire et d'autres facteurs.
       </p>
+    </div>
+  </div>
+
+  <!-- VELO -->
+  <div id="velo" class="panel">
+    <div class="chart-card">
+      <div class="chart-title">🚴 Performance vélo</div>
+      <div style="position:relative;height:280px"><canvas id="chartVelo"></canvas></div>
+      <div class="legend" style="margin-top:14px">
+        <div class="legend-item"><div class="legend-line" style="background:#38bdf8"></div>Distance (km)</div>
+        <div class="legend-item"><div class="legend-line" style="background:#f97316"></div>Durée (min)</div>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-top:20px">
+      <div class="chart-title">Cumul sur la période</div>
+      <div class="kpi-grid" id="kpiVelo"></div>
+    </div>
+  </div>
+
+  <!-- SAISIE VELO -->
+  <div id="saisievelo" class="panel">
+    <div class="chart-card">
+      <div class="chart-title">Ajouter une session</div>
+      <div class="form-row">
+        <div class="form-group" style="max-width:180px">
+          <label>Date</label>
+          <input type="date" id="veloDate">
+        </div>
+        <div class="form-group" style="max-width:140px">
+          <label>Distance (km)</label>
+          <input type="number" id="veloDistance" placeholder="7.5" step="0.1" min="0">
+        </div>
+        <div class="form-group" style="max-width:140px">
+          <label>Durée (min)</label>
+          <input type="number" id="veloDuree" placeholder="20" step="1" min="0">
+        </div>
+        <button class="btn btn-green" onclick="addVelo()" style="margin-top:22px">+ Ajouter</button>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-top:20px">
+      <div class="chart-title" id="veloListTitle">Sessions enregistrées</div>
+      <div id="veloList"></div>
     </div>
   </div>
 
@@ -520,7 +558,7 @@ const STORAGE_KEY = 'calorietrack_v1';
 function saveData(){
   const calcDateEl = document.getElementById('calcDate');
   const calcDateVal = (calcDateEl && calcDateEl.value) ? calcDateEl.value : (window._savedCalcDate || '');
-  const data = { days, pesees, refs, refNextId, calcItems, activePeriod, calcDate: calcDateVal, poids: getPoids(), objectif: getObjectif() };
+  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, activePeriod, calcDate: calcDateVal, poids: getPoids(), objectif: getObjectif() };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     localStorage.setItem(STORAGE_KEY+'_calc', JSON.stringify({calcItems, calcDate: calcDateVal}));
@@ -540,6 +578,7 @@ function loadData(){
     if(data.refs) { refs = data.refs; refNextId = data.refNextId || 100; }
     if(data.calcItems && data.calcItems.length > 0) calcItems = data.calcItems;
     if(data.activePeriod) activePeriod = data.activePeriod;
+    if(data.veloSessions) veloSessions = data.veloSessions;
     if(data.calcDate) window._savedCalcDate = data.calcDate;
     // Backup: try dedicated calc storage
     try {
@@ -557,7 +596,7 @@ function loadData(){
 }
 
 function exportData(){
-  const data = { days, pesees, refs, refNextId, calcItems, poids: getPoids(), objectif: getObjectif(), exportDate: new Date().toISOString() };
+  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, poids: getPoids(), objectif: getObjectif(), exportDate: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -577,6 +616,7 @@ function importData(event){
       if(!confirm('Remplacer toutes les données actuelles par celles du fichier ?')) return;
       days = data.days;
       pesees = data.pesees || [];
+      veloSessions = data.veloSessions || [];
       if(data.refs) { refs = data.refs; refNextId = data.refNextId || 100; }
       if(data.poids) document.getElementById('poidsInput').value = data.poids;
       if(data.objectif) document.getElementById('objectifInput').value = data.objectif;
@@ -592,7 +632,7 @@ function refresh(){
   const s=computeStats();
   renderKPI(s); renderChartMain(s); renderChartDeficit(s); renderChartPoids(s);
   renderDeficitList(s); renderSaisieList(s); renderPoidsCards(s);
-  renderRefs(); renderCalcSelect(); renderCalcItems(); renderPeseeList();
+  renderRefs(); renderCalcSelect(); renderCalcItems(); renderPeseeList(); renderVelo();
   // Sync period buttons
   document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));
   const periodMap={'mois_en_cours':0,'mois_precedent':1,'tout':2};
@@ -601,6 +641,8 @@ function refresh(){
 }
 
 function renderKPI(s){
+  const veloFiltered=getFilteredVelo();
+  const veloDashDist=veloFiltered.reduce((s,v)=>s+v.distance,0);
   const kpis=[
     {label:'Déficit total',value:Math.round(s.totalDeficit).toLocaleString('fr-FR'),unit:'kcal',color:s.totalDeficit>0?'green':'red'},
     {label:'Perte estimée',value:(s.pertePoids>0?'−':'+')+Math.abs(s.pertePoids).toFixed(2),unit:'kg',color:s.pertePoids>0?'green':'red'},
@@ -608,6 +650,7 @@ function renderKPI(s){
     {label:'Moy. calories',value:Math.round(s.moyenneCalories).toLocaleString('fr-FR'),unit:'kcal/j',color:'indigo'},
     {label:'Jours en déficit',value:s.joursDeficit,unit:'/ '+days.length,color:'yellow'},
     {label:'Déficit moyen',value:Math.round(s.avgDailyDeficit).toLocaleString('fr-FR'),unit:'kcal/j',color:'blue'},
+    {label:'Vélo (période)',value:veloDashDist.toFixed(1),unit:'km',color:'blue'},
   ];
   document.getElementById('kpiGrid').innerHTML=kpis.map(k=>`<div class="card"><div class="card-label">${k.label}</div><div class="card-value ${k.color}">${k.value}</div><div class="card-unit">${k.unit}</div></div>`).join('');
 }
@@ -667,26 +710,10 @@ function renderChartMain(s){
 function renderChartDeficit(s){
   destroyChart('deficit'); if(!s.deficits.length)return;
   const ctx=document.getElementById('chartDeficit').getContext('2d');
-  const noteIconPlugin={id:'noteIcons',afterDatasetsDraw(chart){
-    const {ctx:c2,scales:{x,y}}=chart;
-    s.deficits.forEach((d,i)=>{
-      if(!d.note)return;
-      const xPos=x.getPixelForValue(i);
-      const yPos=y.getPixelForValue(d.deficit>=0?d.deficit:0);
-      c2.save();c2.font='11px serif';c2.textAlign='center';
-      c2.fillText('📝',xPos,yPos-6);c2.restore();
-    });
-  }};
-  const opts=chartOptions('kcal');
-  opts.plugins=Object.assign({},opts.plugins||{},{tooltip:{callbacks:{label(ctx2){
-    const d=s.deficits[ctx2.dataIndex];
-    const base=(d.deficit>=0?'Déficit : +':'Surplus : ')+Math.abs(Math.round(d.deficit))+' kcal';
-    return d.note?[base,'📝 '+d.note]:base;
-  }}}});
   charts['deficit']=new Chart(ctx,{type:'bar',data:{labels:s.deficits.map(d=>d.label),datasets:[{
     label:'Déficit',data:s.deficits.map(d=>d.deficit),
     backgroundColor:s.deficits.map(d=>d.deficit>=0?'rgba(34,197,94,0.75)':'rgba(239,68,68,0.75)'),borderRadius:3
-  }]},options:opts,plugins:[noteIconPlugin]});
+  }]},options:chartOptions('kcal')});
 }
 
 function renderChartPoids(s){
@@ -898,20 +925,16 @@ function validerJournee(){
   const dateVal=document.getElementById('calcDate').value;
   if(!dateVal){alert('Merci de choisir une date.');return;}
   const label=new Date(dateVal).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
-  const noteEl=document.getElementById('calcNote');
-  const noteVal=noteEl?noteEl.value.trim():'';
   const existing=days.findIndex(d=>d.date===dateVal);
   if(existing>=0){
+    // Additionne au lieu de remplacer
     days[existing].calories += total;
-    if(noteVal) days[existing].note=noteVal;
   } else {
-    const entry={date:dateVal,label,calories:total,objectif:getObjectif()};
-    if(noteVal) entry.note=noteVal;
-    days.push(entry);
+    days.push({date:dateVal,label,calories:total,objectif:getObjectif()});
     days.sort((a,b)=>a.date.localeCompare(b.date));
+    
   }
   calcItems=[];
-  if(noteEl) noteEl.value='';
   refresh(); saveData();
   // Avancer la date au lendemain
   const next=new Date(dateVal); next.setDate(next.getDate()+1);
@@ -939,6 +962,79 @@ function zoomPoids(factor){
 }
 function resetZoomPoids(){
   if(charts['poids']) charts['poids'].resetZoom();
+}
+
+function getFilteredVelo(){
+  if(activePeriod==='tout') return veloSessions;
+  const now=new Date();
+  if(activePeriod==='mois_en_cours'){return veloSessions.filter(s=>{const d=new Date(s.date);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});}
+  if(activePeriod==='mois_precedent'){const prev=new Date(now.getFullYear(),now.getMonth()-1,1);return veloSessions.filter(s=>{const d=new Date(s.date);return d.getMonth()===prev.getMonth()&&d.getFullYear()===prev.getFullYear();});}
+  return veloSessions;
+}
+
+function addVelo(){
+  const date=document.getElementById('veloDate').value;
+  const dist=parseFloat(document.getElementById('veloDistance').value);
+  const dur=parseFloat(document.getElementById('veloDuree').value);
+  if(!date||isNaN(dist)||isNaN(dur)||dist<=0||dur<=0){alert('Merci de remplir tous les champs.');return;}
+  const label=new Date(date).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
+  veloSessions.push({date,label,distance:dist,duree:dur});
+  veloSessions.sort((a,b)=>a.date.localeCompare(b.date));
+  document.getElementById('veloDistance').value='';
+  document.getElementById('veloDuree').value='';
+  const next=new Date(date); next.setDate(next.getDate()+1);
+  document.getElementById('veloDate').value=next.toISOString().split('T')[0];
+  renderVelo(); saveData();
+}
+
+function deleteVelo(i){
+  if(!confirm('Supprimer cette session ?'))return;
+  veloSessions.splice(i,1); renderVelo(); saveData();
+}
+
+function renderVelo(){
+  const filtered=getFilteredVelo();
+  const totalDist=filtered.reduce((s,v)=>s+v.distance,0);
+  const totalDur=filtered.reduce((s,v)=>s+v.duree,0);
+  const nb=filtered.length;
+  const kpiEl=document.getElementById('kpiVelo');
+  if(kpiEl) kpiEl.innerHTML=[
+    {l:'Distance totale',v:totalDist.toFixed(1),u:'km',c:'#38bdf8'},
+    {l:'Dur\u00e9e totale',v:Math.round(totalDur),u:'min',c:'#f97316'},
+    {l:'Sessions',v:nb,u:'',c:'#e8e8f0'},
+    {l:'Moy. distance',v:nb?(totalDist/nb).toFixed(1):0,u:'km/session',c:'#e8e8f0'}
+  ].map(k=>`<div class="kpi-card"><div class="kpi-label">${k.l}</div><div class="kpi-value" style="color:${k.c}">${k.v}<span class="kpi-unit"> ${k.u}</span></div></div>`).join('');
+  if(charts['velo']){charts['velo'].destroy();delete charts['velo'];}
+  const cvs=document.getElementById('chartVelo');
+  if(cvs&&filtered.length){
+    charts['velo']=new Chart(cvs.getContext('2d'),{type:'bar',
+      data:{labels:filtered.map(v=>v.label),datasets:[
+        {label:'Distance (km)',data:filtered.map(v=>v.distance),backgroundColor:'rgba(56,189,248,0.65)',borderColor:'#38bdf8',borderWidth:1,borderRadius:3,yAxisID:'yDist'},
+        {label:'Dur\u00e9e (min)',data:filtered.map(v=>v.duree),type:'line',borderColor:'#f97316',backgroundColor:'rgba(249,115,22,0.08)',fill:false,tension:0.4,pointRadius:3,pointBackgroundColor:'#f97316',borderWidth:2,yAxisID:'yDur'}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(10,10,20,0.95)',titleColor:'#f97316',bodyColor:'#fff',borderColor:'rgba(249,115,22,0.3)',borderWidth:1}},
+        scales:{
+          yDist:{position:'left',grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.4)',font:{size:10}},title:{display:true,text:'km',color:'#38bdf8',font:{size:10}}},
+          yDur:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'rgba(255,255,255,0.4)',font:{size:10}},title:{display:true,text:'min',color:'#f97316',font:{size:10}}},
+          x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.4)',font:{size:10},maxRotation:45}}
+        }
+      }
+    });
+  }
+  const listEl=document.getElementById('veloList');
+  const titleEl=document.getElementById('veloListTitle');
+  if(titleEl) titleEl.textContent='Sessions enregistr\u00e9es ('+veloSessions.length+')';
+  if(listEl){
+    if(!veloSessions.length){listEl.innerHTML='<p class="empty-msg">Aucune session.</p>';return;}
+    listEl.innerHTML=veloSessions.slice().reverse().map((v,ri)=>{
+      const idx=veloSessions.length-1-ri;
+      return '<div class="day-row"><span class="day-date">'+v.label+'</span>'
+        +'<span style="color:#38bdf8;font-family:\'Space Mono\',monospace;font-size:13px;min-width:65px">'+v.distance+' km</span>'
+        +'<span style="color:#f97316;font-family:\'Space Mono\',monospace;font-size:13px;min-width:65px">'+v.duree+' min</span>'
+        +'<button class="day-del" onclick="deleteVelo('+idx+')">\u00d7</button></div>';
+    }).join('');
+  }
 }
 
 function setPeriod(period, btn){
@@ -999,6 +1095,7 @@ function clearAll(){ if(confirm('Effacer toutes les données ?')){ days=[]; refr
 
 /* ── PESÉES ── */
 let pesees=[];
+let veloSessions=[];
 
 function addPesee(){
   const dateVal=document.getElementById('peseeDate').value;
@@ -1130,6 +1227,7 @@ const hasData = loadData();
 if(!hasData) days = genDemo();
 refresh();
 window.addEventListener('beforeunload', saveData);
+const _vd=document.getElementById('veloDate'); if(_vd) _vd.value=new Date().toISOString().split('T')[0];
 
 // Service Worker (PWA)
 if('serviceWorker' in navigator){
