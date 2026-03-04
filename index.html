@@ -750,11 +750,9 @@ function renderChartPoids(s){
   const allL=[...histL,...projL];
   const totalPoints=allL.length;
 
-  // Pesées réelles alignées par date sur les labels
-  // On construit un mapping date->val pour les pesées
+  // Pesées réelles alignées par date réelle
   const peseeDateMap={};
   pesees.forEach(p=>{ peseeDateMap[p.date]=p.val; });
-  // Pour chaque label de allL, on retrouve la date correspondante
   const allDates=[...days.map(d=>d.date),...Array.from({length:s.projections.length},(_,i)=>{
     const dt=new Date(); dt.setDate(dt.getDate()+i+1); return dt.toISOString().split('T')[0];
   })];
@@ -1192,14 +1190,23 @@ function renderPeseeList(){
   const s=computeStats();
   el.innerHTML=pesees.slice().reverse().map((p,ri)=>{
     const i=pesees.length-1-ri;
-    // Trouver le poids théorique au même label
-    const dayIdx=days.findIndex(d=>d.date===p.date);
+    // Écart basé sur déficits cumulés depuis la pesée précédente
     let ecartHtml='';
-    if(dayIdx>=0&&s.poidsHistory[dayIdx]!=null){
-      const th=s.poidsHistory[dayIdx];
-      const diff=p.val-th;
-      const col=diff<=0?'#22c55e':'#f97316';
-      ecartHtml='<span style="font-family:monospace;font-size:11px;color:'+col+';min-width:80px;text-align:right">'+(diff>0?'+':'')+diff.toFixed(2)+' kg vs théo.</span>';
+    const sortedPesees=pesees.slice().sort((a,b)=>a.date.localeCompare(b.date));
+    const pIdx=sortedPesees.findIndex(x=>x.date===p.date);
+    const prevPesee=pIdx>0?sortedPesees[pIdx-1]:null;
+    const startDate=prevPesee?prevPesee.date:null;
+    const startPoids=prevPesee?prevPesee.val:null;
+    if(startDate&&startPoids!=null){
+      // Jours entre pesée précédente (exclu) et pesée actuelle (inclus)
+      const periodDays=days.filter(d=>d.date>startDate&&d.date<=p.date);
+      if(periodDays.length>0){
+        const deficitCumul=periodDays.reduce((s,d)=>s+(d.objectif-d.calories),0);
+        const poidsTh=parseFloat((startPoids-deficitCumul/7700).toFixed(2));
+        const diff=parseFloat((p.val-poidsTh).toFixed(2));
+        const col=diff<=0?'#22c55e':'#f97316';
+        ecartHtml='<span style="font-family:monospace;font-size:11px;color:'+col+';min-width:80px;text-align:right">'+(diff>0?'+':'')+diff.toFixed(2)+' kg vs théo.</span>';
+      }
     }
     return '<div class="day-row">'+
       '<span class="day-date">'+p.label+'</span>'+
