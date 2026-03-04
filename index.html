@@ -119,16 +119,7 @@
       <h1>CALORIE<span>TRACK</span></h1>
       <p class="subtitle">SUIVI CALORIQUE CONTINU</p>
     </div>
-    <div class="header-controls">
-      <div class="control-group">
-        <label>Poids initial (kg)</label>
-        <input type="number" id="poidsInput" value="75" step="0.1" oninput="refresh()">
-      </div>
-      <div class="control-group">
-        <label>Objectif kcal/j</label>
-        <input type="number" id="objectifInput" value="2200" step="50" oninput="refresh()">
-      </div>
-    </div>
+
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
       <span id="saveIndicator" style="font-size:11px;color:rgba(255,255,255,0.25);font-family:'Space Mono',monospace;letter-spacing:1px"></span>
       <button class="btn btn-secondary" onclick="exportData()" style="padding:6px 14px;font-size:11px">⬇ Exporter JSON</button>
@@ -157,9 +148,9 @@
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
         <div class="chart-title" style="margin-bottom:0" id="mainChartTitle">Calories consommées vs objectif</div>
         <div style="display:flex;gap:6px">
-          <button class="period-btn dash-period-btn" onclick="setPeriod('mois_en_cours',this)">Mois en cours</button>
-          <button class="period-btn dash-period-btn" onclick="setPeriod('mois_precedent',this)">Mois précédent</button>
-          <button class="period-btn dash-period-btn" onclick="setPeriod('tout',this)">Tout</button>
+          <button class="period-btn" onclick="setPeriod('mois_en_cours',this)">Mois en cours</button>
+          <button class="period-btn" onclick="setPeriod('mois_precedent',this)">Mois précédent</button>
+          <button class="period-btn" onclick="setPeriod('tout',this)">Tout</button>
         </div>
       </div>
       <div style="position:relative" id="chartMainWrap">
@@ -173,14 +164,7 @@
   <!-- DEFICIT -->
   <div id="deficit" class="panel">
     <div class="chart-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
-        <div class="chart-title" style="margin-bottom:0">Déficit journalier (kcal)</div>
-        <div style="display:flex;gap:6px">
-          <button class="period-btn deficit-period-btn active" onclick="setDeficitPeriod('mois_en_cours',this)">Mois en cours</button>
-          <button class="period-btn deficit-period-btn" onclick="setDeficitPeriod('mois_precedent',this)">Mois précédent</button>
-          <button class="period-btn deficit-period-btn" onclick="setDeficitPeriod('tout',this)">Tout</button>
-        </div>
-      </div>
+      <div class="chart-title">Déficit journalier (kcal)</div>
       <canvas id="chartDeficit"></canvas>
       <div class="legend">
         <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>Déficit (sous l'objectif)</div>
@@ -353,7 +337,18 @@
   <!-- TDEE -->
   <div id="tdee" class="panel">
     <div class="chart-card">
-      <div class="chart-title">Vos paramètres</div>
+      <div class="chart-title">Paramètres de suivi</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid rgba(255,255,255,0.07)">
+        <div class="form-group">
+          <label>Poids initial (kg)</label>
+          <input type="number" id="poidsInput" value="75" step="0.1" oninput="refresh()" style="width:100%">
+        </div>
+        <div class="form-group">
+          <label>Objectif kcal/j</label>
+          <input type="number" id="objectifInput" value="2200" step="50" oninput="refresh()" style="width:100%">
+        </div>
+      </div>
+      <div class="chart-title" style="margin-bottom:16px">Vos paramètres TDEE</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px">
 
         <div class="form-group">
@@ -411,14 +406,7 @@
   <!-- VELO -->
   <div id="velo" class="panel">
     <div class="chart-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
-        <div class="chart-title" style="margin-bottom:0">🚴 Performance vélo</div>
-        <div style="display:flex;gap:6px">
-          <button class="period-btn velo-period-btn active" onclick="setVeloPeriod('mois_en_cours',this)">Mois en cours</button>
-          <button class="period-btn velo-period-btn" onclick="setVeloPeriod('mois_precedent',this)">Mois précédent</button>
-          <button class="period-btn velo-period-btn" onclick="setVeloPeriod('tout',this)">Tout</button>
-        </div>
-      </div>
+      <div class="chart-title">🚴 Performance vélo</div>
       <div style="position:relative;height:280px"><canvas id="chartVelo"></canvas></div>
       <div class="legend" style="margin-top:14px">
         <div class="legend-item"><div class="legend-line" style="background:#38bdf8"></div>Distance (km)</div>
@@ -478,8 +466,6 @@ let refs = [
 let refNextId = 20;
 let calcItems = [];
 let activePeriod = 'mois_en_cours'; // 'tout', 'mois_en_cours', 'mois_precedent'
-let veloActivePeriod = 'mois_en_cours';
-let deficitActivePeriod = 'mois_en_cours';
 
 function getFilteredDays(){
   if(activePeriod === 'tout') return days;
@@ -501,6 +487,7 @@ function getFilteredDays(){
 }
 
 function getPoids(){ return parseFloat(document.getElementById('poidsInput').value)||75; }
+function formatDuree(min){ const h=Math.floor(min/60); const m=Math.round(min%60); return h>0 ? (m>0 ? h+'h '+m+'min' : h+'h') : m+'min'; }
 function getObjectif(){ return parseInt(document.getElementById('objectifInput').value)||2200; }
 
 function genDemo(){
@@ -650,11 +637,11 @@ function refresh(){
   renderKPI(s); renderChartMain(s); renderChartDeficit(s); renderChartPoids(s);
   renderDeficitList(s); renderSaisieList(s); renderPoidsCards(s);
   renderRefs(); renderCalcSelect(); renderCalcItems(); renderPeseeList(); renderVelo();
-  // Sync dashboard period buttons only
+  // Sync period buttons
+  document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));
   const periodMap={'mois_en_cours':0,'mois_precedent':1,'tout':2};
-  document.querySelectorAll('.dash-period-btn').forEach(b=>b.classList.remove('active'));
-  const dashBtns=document.querySelectorAll('.dash-period-btn');
-  if(dashBtns[periodMap[activePeriod]]) dashBtns[periodMap[activePeriod]].classList.add('active');
+  const btns=document.querySelectorAll('.period-btn');
+  if(btns[periodMap[activePeriod]]) btns[periodMap[activePeriod]].classList.add('active');
 }
 
 function renderKPI(s){
@@ -725,14 +712,11 @@ function renderChartMain(s){
 }
 
 function renderChartDeficit(s){
-  destroyChart('deficit');
-  const filteredDays = getFilteredDeficit(days.slice());
-  const deficitsData = filteredDays.map(d=>({...d,deficit:d.objectif-d.calories}));
-  if(!deficitsData.length)return;
+  destroyChart('deficit'); if(!s.deficits.length)return;
   const ctx=document.getElementById('chartDeficit').getContext('2d');
-  charts['deficit']=new Chart(ctx,{type:'bar',data:{labels:deficitsData.map(d=>d.label),datasets:[{
-    label:'Déficit',data:deficitsData.map(d=>d.deficit),
-    backgroundColor:deficitsData.map(d=>d.deficit>=0?'rgba(34,197,94,0.75)':'rgba(239,68,68,0.75)'),borderRadius:3
+  charts['deficit']=new Chart(ctx,{type:'bar',data:{labels:s.deficits.map(d=>d.label),datasets:[{
+    label:'Déficit',data:s.deficits.map(d=>d.deficit),
+    backgroundColor:s.deficits.map(d=>d.deficit>=0?'rgba(34,197,94,0.75)':'rgba(239,68,68,0.75)'),borderRadius:3
   }]},options:chartOptions('kcal')});
 }
 
@@ -825,10 +809,8 @@ function renderChartPoids(s){
 
 function renderDeficitList(s){
   const el=document.getElementById('deficitList');
-  const filteredDays = getFilteredDeficit(days.slice());
-  const deficitsData = filteredDays.map(d=>({...d,deficit:d.objectif-d.calories}));
-  if(!deficitsData.length){el.innerHTML='<p class="empty-msg">Aucune donnée enregistrée.</p>';return;}
-  el.innerHTML=deficitsData.slice().reverse().map(d=>`
+  if(!s.deficits.length){el.innerHTML='<p class="empty-msg">Aucune donnée enregistrée.</p>';return;}
+  el.innerHTML=s.deficits.slice().reverse().map(d=>`
     <div class="day-row">
       <span class="day-date">${d.label}</span>
       <div class="day-bar-wrap"><div class="day-bar" style="width:${Math.min(100,d.calories/(getObjectif()*1.5)*100)}%;background:${d.deficit>=0?'#22c55e':'#ef4444'}"></div></div>
@@ -987,19 +969,11 @@ function resetZoomPoids(){
 }
 
 function getFilteredVelo(){
-  if(veloActivePeriod==='tout') return veloSessions;
+  if(activePeriod==='tout') return veloSessions;
   const now=new Date();
-  if(veloActivePeriod==='mois_en_cours'){return veloSessions.filter(s=>{const d=new Date(s.date);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});}
-  if(veloActivePeriod==='mois_precedent'){const prev=new Date(now.getFullYear(),now.getMonth()-1,1);return veloSessions.filter(s=>{const d=new Date(s.date);return d.getMonth()===prev.getMonth()&&d.getFullYear()===prev.getFullYear();});}
+  if(activePeriod==='mois_en_cours'){return veloSessions.filter(s=>{const d=new Date(s.date);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});}
+  if(activePeriod==='mois_precedent'){const prev=new Date(now.getFullYear(),now.getMonth()-1,1);return veloSessions.filter(s=>{const d=new Date(s.date);return d.getMonth()===prev.getMonth()&&d.getFullYear()===prev.getFullYear();});}
   return veloSessions;
-}
-
-function getFilteredDeficit(days){
-  if(deficitActivePeriod==='tout') return days;
-  const now=new Date();
-  if(deficitActivePeriod==='mois_en_cours'){return days.filter(d=>{const dd=new Date(d.date);return dd.getMonth()===now.getMonth()&&dd.getFullYear()===now.getFullYear();});}
-  if(deficitActivePeriod==='mois_precedent'){const prev=new Date(now.getFullYear(),now.getMonth()-1,1);return days.filter(d=>{const dd=new Date(d.date);return dd.getMonth()===prev.getMonth()&&dd.getFullYear()===prev.getFullYear();});}
-  return days;
 }
 
 function addVelo(){
@@ -1054,7 +1028,7 @@ function renderVelo(){
   const kpiEl=document.getElementById('kpiVelo');
   if(kpiEl) kpiEl.innerHTML=[
     {l:'Distance totale',v:totalDist.toFixed(1),u:'km',c:'#38bdf8'},
-    {l:'Dur\u00e9e totale',v:Math.round(totalDur),u:'min',c:'#f97316'},
+    {l:'Durée totale',v:formatDuree(totalDur),u:'',c:'#f97316'},
     {l:'Sessions',v:nb,u:'',c:'#e8e8f0'},
     {l:'Moy. distance',v:nb?(totalDist/nb).toFixed(1):0,u:'km/session',c:'#e8e8f0'}
   ].map(k=>`<div class="kpi-card"><div class="kpi-label">${k.l}</div><div class="kpi-value" style="color:${k.c}">${k.v}<span class="kpi-unit"> ${k.u}</span></div></div>`).join('');
@@ -1093,25 +1067,10 @@ function renderVelo(){
 
 function setPeriod(period, btn){
   activePeriod = period;
-  document.querySelectorAll('.dash-period-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   refresh();
   saveData();
-}
-
-function setVeloPeriod(period, btn){
-  veloActivePeriod = period;
-  document.querySelectorAll('.velo-period-btn').forEach(b=>b.classList.remove('active'));
-  if(btn) btn.classList.add('active');
-  renderVelo();
-}
-
-function setDeficitPeriod(period, btn){
-  deficitActivePeriod = period;
-  document.querySelectorAll('.deficit-period-btn').forEach(b=>b.classList.remove('active'));
-  if(btn) btn.classList.add('active');
-  const s=computeStats();
-  renderChartDeficit(s); renderDeficitList(s);
 }
 
 function showTab(id,btn){
