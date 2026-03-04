@@ -661,7 +661,7 @@ function refresh(){
 }
 
 function renderKPI(s){
-  const veloFiltered=getFilteredVelo();
+  const veloFiltered=getFilteredVeloByPeriod(activePeriod);
   const veloDashDist=veloFiltered.reduce((s,v)=>s+v.distance,0);
   const kpis=[
     {label:'Déficit total',value:Math.round(s.totalDeficit).toLocaleString('fr-FR'),unit:'kcal',color:s.totalDeficit>0?'green':'red'},
@@ -989,13 +989,14 @@ function resetZoomPoids(){
   if(charts['poids']) charts['poids'].resetZoom();
 }
 
-function getFilteredVelo(){
-  if(veloActivePeriod==='tout') return veloSessions;
+function getFilteredVeloByPeriod(period){
+  if(period==='tout') return veloSessions;
   const now=new Date();
-  if(veloActivePeriod==='mois_en_cours'){return veloSessions.filter(s=>{const d=new Date(s.date);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});}
-  if(veloActivePeriod==='mois_precedent'){const prev=new Date(now.getFullYear(),now.getMonth()-1,1);return veloSessions.filter(s=>{const d=new Date(s.date);return d.getMonth()===prev.getMonth()&&d.getFullYear()===prev.getFullYear();});}
+  if(period==='mois_en_cours'){return veloSessions.filter(s=>{const d=new Date(s.date);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});}
+  if(period==='mois_precedent'){const prev=new Date(now.getFullYear(),now.getMonth()-1,1);return veloSessions.filter(s=>{const d=new Date(s.date);return d.getMonth()===prev.getMonth()&&d.getFullYear()===prev.getFullYear();});}
   return veloSessions;
 }
+function getFilteredVelo(){ return getFilteredVeloByPeriod(veloActivePeriod); }
 
 function getFilteredDeficit(){
   if(deficitActivePeriod==='tout') return days;
