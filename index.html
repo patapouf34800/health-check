@@ -893,7 +893,7 @@ function renderDeficitList(s){
   el.innerHTML=fd.slice().reverse().map(d=>`
     <div class="day-row">
       <span class="day-date">${d.label}</span>
-      <div class="day-bar-wrap"><div class="day-bar" style="width:${Math.min(100,d.calories/(getObjectif()*1.5)*100)}%;background:${d.deficit>=0?'#22c55e':'#ef4444'}"></div></div>
+      <div class="day-bar-wrap"><div class="day-bar" style="width:${Math.min(100,d.calories/d.objectif*100)}%;background:${d.deficit>=0?'#22c55e':'#ef4444'}"></div></div>
       <span class="day-cal">${d.calories.toLocaleString('fr-FR')} kcal</span>
       <span class="day-def ${d.deficit>=0?'green':'red'}">${d.deficit>=0?'−':'+'}${Math.abs(Math.round(d.deficit)).toLocaleString('fr-FR')} kcal</span>
     </div>`).join('');
@@ -907,7 +907,7 @@ function renderSaisieList(s){
     const i=days.length-1-ri, def=d.objectif-d.calories;
     return `<div class="day-row"${d.note?' title="'+d.note+'"':''}>
       <span class="day-date">${d.label}</span>
-      <div class="day-bar-wrap"><div class="day-bar" style="width:${Math.min(100,d.calories/(getObjectif()*1.5)*100)}%;background:${def>=0?'#22c55e':'#ef4444'}"></div></div>
+      <div class="day-bar-wrap"><div class="day-bar" style="width:${Math.min(100,d.calories/d.objectif*100)}%;background:${def>=0?'#22c55e':'#ef4444'}"></div></div>
       <span class="day-cal">${d.calories.toLocaleString('fr-FR')} kcal</span>
       <span class="day-def ${def>=0?'green':'red'}">${def>=0?'−':'+'}${Math.abs(Math.round(def)).toLocaleString('fr-FR')} kcal</span>
       ${d.note?'<span style="font-size:13px;opacity:0.5" title="'+d.note+'">📝</span>':''}
@@ -1264,7 +1264,7 @@ function renderPeseeList(){
     }
     return '<div class="day-row">'+
       '<span class="day-date">'+p.label+'</span>'+
-      '<div class="day-bar-wrap"><div class="day-bar" style="width:60%;background:#22c55e"></div></div>'+
+      '<div class="day-bar-wrap"><div class="day-bar" style="width:'+(Math.min(100,(p.val/Math.max(...pesees.map(x=>x.val))*100)).toFixed(1))+'%;background:#22c55e"></div></div>'+
       '<span class="pesee-blur" style="font-family:monospace;font-size:13px;min-width:70px;text-align:right;color:#22c55e">'+p.val.toFixed(1)+' kg</span>'+
       ecartHtml+
       '<button class="day-del" onclick="deletePesee('+i+')">×</button>'+
