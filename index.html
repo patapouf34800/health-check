@@ -105,6 +105,10 @@
   .total-value{font-family:'Space Mono',monospace;font-size:28px;font-weight:700;color:#f97316}
 
   .green{color:#22c55e}.red{color:#ef4444}.orange{color:#f97316}.indigo{color:#818cf8}.blue{color:#38bdf8}.yellow{color:#facc15}
+  .card-blur .card-value,.card-blur .card-unit{filter:blur(6px);transition:filter .3s ease}
+  .card-blur:hover .card-value,.card-blur:hover .card-unit{filter:blur(0)}
+  .pesee-blur{filter:blur(6px);transition:filter .3s ease}
+  .day-row:hover .pesee-blur{filter:blur(0)}
   .empty-msg{color:rgba(255,255,255,0.25);font-size:13px;text-align:center;padding:24px 0;font-style:italic}
   .period-btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.4);border-radius:7px;padding:6px 12px;cursor:pointer;font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;transition:all .2s}
   .period-btn:hover{color:rgba(255,255,255,0.7);border-color:rgba(255,255,255,0.2)}
@@ -193,6 +197,7 @@
           <button class="period-btn proj-btn" onclick="setProjDays(30,this)">J+30</button>
           <button class="period-btn proj-btn active" onclick="setProjDays(90,this)">J+90</button>
           <button class="period-btn proj-btn" onclick="setProjDays(180,this)">J+180</button>
+          <button class="period-btn" id="btnAxisPoids" onclick="togglePoidsAxis(this)">👁 axe</button>
           <button class="period-btn" onclick="zoomPoids(1.4)" title="Zoom +">+ zoom</button>
           <button class="period-btn" onclick="zoomPoids(0.7)" title="Zoom −">− zoom</button>
           <button class="period-btn" onclick="resetZoomPoids()">↺ reset</button>
@@ -486,6 +491,7 @@ let activePeriod = 'mois_en_cours'; // 'tout', 'mois_en_cours', 'mois_precedent'
 let veloActivePeriod = 'tout';
 let deficitActivePeriod = 'tout';
 let nbProjChoice = 90;
+let poidsAxisVisible = false;
 
 function getFilteredDays(){
   if(activePeriod === 'tout') return days;
@@ -670,13 +676,13 @@ function renderKPI(s){
   const kpis=[
     {label:'Déficit total',value:Math.round(s.totalDeficit).toLocaleString('fr-FR'),unit:'kcal',color:s.totalDeficit>0?'green':'red'},
     {label:'Perte estimée',value:(s.pertePoids>0?'−':'+')+Math.abs(s.pertePoids).toFixed(2),unit:'kg',color:s.pertePoids>0?'green':'red'},
-    {label:'Poids actuel',value:s.poidsActuel.toFixed(1),unit:'kg',color:'orange'},
+    {label:'Poids théorique',value:s.poidsActuel.toFixed(1),unit:'kg',color:'orange',blur:true},
     {label:'Moy. calories',value:Math.round(s.moyenneCalories).toLocaleString('fr-FR'),unit:'kcal/j',color:'indigo'},
     {label:'Jours en déficit',value:s.joursDeficit,unit:'/ '+days.length,color:'yellow'},
     {label:'Déficit moyen',value:Math.round(s.avgDailyDeficit).toLocaleString('fr-FR'),unit:'kcal/j',color:'blue'},
     {label:'Vélo (période)',value:veloDashDist.toFixed(1),unit:'km',color:'blue'},
   ];
-  document.getElementById('kpiGrid').innerHTML=kpis.map(k=>`<div class="card"><div class="card-label">${k.label}</div><div class="card-value ${k.color}">${k.value}</div><div class="card-unit">${k.unit}</div></div>`).join('');
+  document.getElementById('kpiGrid').innerHTML=kpis.map(k=>`<div class="card${k.blur?' card-blur':''}"><div class="card-label">${k.label}</div><div class="card-value ${k.color}">${k.value}</div><div class="card-unit">${k.unit}</div></div>`).join('');
 }
 
 function destroyChart(id){ if(charts[id]){charts[id].destroy();delete charts[id];} }
@@ -767,7 +773,8 @@ function renderChartPoids(s){
   const maxVal=Math.max(...allVals,getPoids())+0.5;
 
   const opts={...chartOptions('kg'),plugins:{...chartOptions('kg').plugins,tooltip:{enabled:false},zoom:{zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'x'},pan:{enabled:true,mode:'x'},limits:{x:{min:'original',max:'original'}}}}};
-  opts.scales={...chartOptions('kg').scales,y:{...chartOptions('kg').scales.y,min:Math.floor(minVal),max:Math.ceil(maxVal)}};
+  const axisColor=poidsAxisVisible?'rgba(255,255,255,0.3)':'#050508';
+  opts.scales={...chartOptions('kg').scales,y:{...chartOptions('kg').scales.y,min:Math.floor(minVal),max:Math.ceil(maxVal),ticks:{color:axisColor,font:{size:10}}}};
 
   const nullHist=Array(histL.length).fill(null);
   charts['poids']=new Chart(ctx,{type:'line',data:{labels:allL,datasets:[
@@ -991,6 +998,13 @@ function zoomPoids(factor){
 }
 function resetZoomPoids(){
   if(charts['poids']) charts['poids'].resetZoom();
+}
+
+function togglePoidsAxis(btn){
+  poidsAxisVisible = !poidsAxisVisible;
+  btn.classList.toggle('active', poidsAxisVisible);
+  const s=computeStats();
+  renderChartPoids(s);
 }
 
 function setProjDays(n, btn){
@@ -1218,13 +1232,13 @@ function renderPeseeList(){
         const poidsTh=parseFloat((startPoids-deficitCumul/7700).toFixed(2));
         const diff=parseFloat((p.val-poidsTh).toFixed(2));
         const col=diff<=0?'#22c55e':'#f97316';
-        ecartHtml='<span style="font-family:monospace;font-size:11px;color:'+col+';min-width:80px;text-align:right">'+(diff>0?'+':'')+diff.toFixed(2)+' kg vs théo.</span>';
+        ecartHtml='<span class="pesee-blur" style="font-family:monospace;font-size:11px;color:'+col+';min-width:80px;text-align:right">'+(diff>0?'+':'')+diff.toFixed(2)+' kg vs théo.</span>';
       }
     }
     return '<div class="day-row">'+
       '<span class="day-date">'+p.label+'</span>'+
       '<div class="day-bar-wrap"><div class="day-bar" style="width:60%;background:#22c55e"></div></div>'+
-      '<span style="font-family:monospace;font-size:13px;min-width:70px;text-align:right;color:#22c55e">'+p.val.toFixed(1)+' kg</span>'+
+      '<span class="pesee-blur" style="font-family:monospace;font-size:13px;min-width:70px;text-align:right;color:#22c55e">'+p.val.toFixed(1)+' kg</span>'+
       ecartHtml+
       '<button class="day-del" onclick="deletePesee('+i+')">×</button>'+
     '</div>';
