@@ -1184,6 +1184,7 @@ function showTab(id,btn){
   if(id==='saisie') autoFillDate();
   if(id==='calculateur') autoFillCalcDate();
   if(id==='tdee'){ document.getElementById('tdeePoids').value=getPoids(); calcTDEE(); }
+  if(id==='poids'){ const pd=document.getElementById('peseeDate'); if(!pd.value) pd.value=new Date().toISOString().split('T')[0]; }
 }
 
 function autoFillDate(){
