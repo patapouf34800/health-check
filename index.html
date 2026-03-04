@@ -323,6 +323,10 @@
           <label>Date</label>
           <input type="date" id="calcDate" onchange="saveData()">
         </div>
+        <div class="form-group" style="flex:2;min-width:200px">
+          <label>Note (optionnel)</label>
+          <input type="text" id="calcNote" placeholder="ex: repas de fête, stress...">
+        </div>
         <button class="btn btn-green" onclick="validerJournee()" id="btnValider" style="margin-top:22px">+ Ajouter au total du jour</button>
         <button class="btn btn-secondary" onclick="resetJour()" style="margin-top:22px;font-size:11px;padding:6px 12px">↺ Remettre à zéro le jour</button>
         <button class="btn btn-secondary" onclick="clearCalc()" style="margin-top:22px">🗑 Vider</button>
@@ -656,6 +660,8 @@ function importData(event){
       pesees = data.pesees || [];
       veloSessions = data.veloSessions || [];
       if(data.refs) { refs = data.refs; refNextId = data.refNextId || 100; }
+      if(data.calcItems) calcItems = data.calcItems;
+      if(data.activePeriod) activePeriod = data.activePeriod;
       if(data.poids) document.getElementById('poidsInput').value = data.poids;
       if(data.objectif) document.getElementById('objectifInput').value = data.objectif;
       saveData();
@@ -1004,15 +1010,16 @@ function validerJournee(){
   if(!dateVal){alert('Merci de choisir une date.');return;}
   const label=new Date(dateVal).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
   const existing=days.findIndex(d=>d.date===dateVal);
+  const calcNoteVal=document.getElementById('calcNote').value.trim();
   if(existing>=0){
-    // Additionne au lieu de remplacer
     days[existing].calories += total;
+    if(calcNoteVal) days[existing].note=calcNoteVal;
   } else {
-    days.push({date:dateVal,label,calories:total,objectif:getObjectif()});
+    days.push({date:dateVal,label,calories:total,objectif:getObjectif(),note:calcNoteVal||undefined});
     days.sort((a,b)=>a.date.localeCompare(b.date));
-    
   }
   calcItems=[];
+  document.getElementById('calcNote').value='';
   refresh(); saveData();
   // Avancer la date au lendemain
   const next=new Date(dateVal); next.setDate(next.getDate()+1);
