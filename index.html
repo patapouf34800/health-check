@@ -167,9 +167,9 @@
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
         <div class="chart-title" style="margin-bottom:0">Déficit journalier (kcal)</div>
         <div style="display:flex;gap:6px">
-          <button class="period-btn deficit-period-btn active" onclick="setDeficitPeriod('mois_en_cours',this)">Mois en cours</button>
+          <button class="period-btn deficit-period-btn" onclick="setDeficitPeriod('mois_en_cours',this)">Mois en cours</button>
           <button class="period-btn deficit-period-btn" onclick="setDeficitPeriod('mois_precedent',this)">Mois précédent</button>
-          <button class="period-btn deficit-period-btn" onclick="setDeficitPeriod('tout',this)">Tout</button>
+          <button class="period-btn deficit-period-btn active" onclick="setDeficitPeriod('tout',this)">Tout</button>
         </div>
       </div>
       <canvas id="chartDeficit"></canvas>
@@ -416,9 +416,9 @@
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
         <div class="chart-title" style="margin-bottom:0">🚴 Performance vélo</div>
         <div style="display:flex;gap:6px">
-          <button class="period-btn velo-period-btn active" onclick="setVeloPeriod('mois_en_cours',this)">Mois en cours</button>
+          <button class="period-btn velo-period-btn" onclick="setVeloPeriod('mois_en_cours',this)">Mois en cours</button>
           <button class="period-btn velo-period-btn" onclick="setVeloPeriod('mois_precedent',this)">Mois précédent</button>
-          <button class="period-btn velo-period-btn" onclick="setVeloPeriod('tout',this)">Tout</button>
+          <button class="period-btn velo-period-btn active" onclick="setVeloPeriod('tout',this)">Tout</button>
         </div>
       </div>
       <div style="position:relative;height:280px"><canvas id="chartVelo"></canvas></div>
@@ -480,8 +480,8 @@ let refs = [
 let refNextId = 20;
 let calcItems = [];
 let activePeriod = 'mois_en_cours'; // 'tout', 'mois_en_cours', 'mois_precedent'
-let veloActivePeriod = 'mois_en_cours';
-let deficitActivePeriod = 'mois_en_cours';
+let veloActivePeriod = 'tout';
+let deficitActivePeriod = 'tout';
 
 function getFilteredDays(){
   if(activePeriod === 'tout') return days;
