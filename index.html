@@ -471,7 +471,6 @@
           <input type="number" id="veloDuree" placeholder="20" step="1" min="0">
         </div>
         <button class="btn btn-green" onclick="addVelo()" style="margin-top:22px">+ Ajouter</button>
-        <label class="btn btn-secondary" style="margin-top:22px;cursor:pointer">⬆ Importer JSON vélo<input type="file" accept=".json" onchange="importVelo(event)" style="display:none"></label>
       </div>
     </div>
     <div class="chart-card" style="margin-top:20px">
@@ -1094,30 +1093,6 @@ function addVelo(){
   const next=new Date(date); next.setDate(next.getDate()+1);
   document.getElementById('veloDate').value=next.toISOString().split('T')[0];
   renderVelo(); saveData();
-}
-
-function importVelo(event){
-  const file=event.target.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=function(e){
-    try {
-      const data=JSON.parse(e.target.result);
-      if(!data.veloSessions||!Array.isArray(data.veloSessions)){alert('Fichier invalide : pas de veloSessions.');return;}
-      const nb=data.veloSessions.length;
-      if(!confirm('Importer '+nb+' sessions vélo ? (Elles seront ajoutées à vos données existantes)'))return;
-      // Merge : add only sessions not already present (by date)
-      const existingDates=new Set(veloSessions.map(s=>s.date));
-      let added=0;
-      data.veloSessions.forEach(s=>{
-        if(!existingDates.has(s.date)){veloSessions.push(s); added++;}
-      });
-      veloSessions.sort((a,b)=>a.date.localeCompare(b.date));
-      renderVelo(); saveData();
-      alert(added+' sessions importées ('+( nb-added)+' doublons ignorés).');
-    } catch(err){ alert('Erreur de lecture du fichier JSON.'); }
-  };
-  reader.readAsText(file);
-  event.target.value='';
 }
 
 function deleteVelo(i){
