@@ -91,6 +91,8 @@
   .ref-kcal{font-family:'Space Mono',monospace;font-size:12px;color:#f97316;white-space:nowrap}
   .ref-del{background:none;border:none;color:rgba(255,255,255,0.2);cursor:pointer;font-size:16px;padding:0 2px;transition:color .2s;line-height:1}
   .ref-del:hover{color:#ef4444}
+  .ref-item.selected{border-color:rgba(249,115,22,0.6);background:rgba(249,115,22,0.08)}
+  .ref-item.selected .ref-name{color:#f97316}
 
   .calc-items{display:flex;flex-direction:column;gap:8px;margin-top:14px;max-height:350px;overflow-y:auto}
   .calc-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06)}
@@ -361,7 +363,13 @@
     </div>
 
     <div class="chart-card">
-      <div class="chart-title" id="refTitle">Ma liste d'aliments</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+        <div class="chart-title" style="margin-bottom:0" id="refTitle">Ma liste d'aliments</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary" id="btnDeleteSelected" onclick="deleteSelectedRefs()" style="display:none;border-color:rgba(239,68,68,0.3);color:#ef4444;background:rgba(239,68,68,0.08);padding:6px 12px;font-size:11px">🗑 Supprimer sélection</button>
+          <button class="btn btn-secondary" onclick="clearAllRefs()" style="border-color:rgba(239,68,68,0.3);color:#ef4444;background:rgba(239,68,68,0.08);padding:6px 12px;font-size:11px">🗑 Tout supprimer</button>
+        </div>
+      </div>
       <div class="ref-grid" id="refGrid"></div>
     </div>
   </div>
@@ -940,13 +948,49 @@ function renderPoidsCards(s){
 function renderRefs(){
   document.getElementById('refTitle').textContent=`Ma liste d'aliments (${refs.length})`;
   const grid=document.getElementById('refGrid');
-  if(!refs.length){grid.innerHTML='<p class="empty-msg" style="grid-column:1/-1">Aucun aliment. Ajoutez vos habituels ci-dessus.</p>';return;}
+  if(!refs.length){grid.innerHTML='<p class="empty-msg" style="grid-column:1/-1">Aucun aliment. Ajoutez vos habituels ci-dessus.</p>';updateDeleteSelectedBtn();return;}
   grid.innerHTML=refs.map(r=>`
-    <div class="ref-item">
+    <div class="ref-item" id="ref-item-${r.id}" onclick="toggleRefSelect(${r.id})" style="cursor:pointer">
       <span class="ref-name">${r.nom}</span>
       <span class="ref-kcal">${r.kcal100} kcal/100g</span>
-      <button class="ref-del" onclick="deleteRef(${r.id})">×</button>
+      <button class="ref-del" onclick="event.stopPropagation();deleteRef(${r.id})">×</button>
     </div>`).join('');
+  updateDeleteSelectedBtn();
+}
+
+function toggleRefSelect(id){
+  const el=document.getElementById('ref-item-'+id);
+  if(!el)return;
+  el.classList.toggle('selected');
+  updateDeleteSelectedBtn();
+}
+
+function updateDeleteSelectedBtn(){
+  const count=document.querySelectorAll('.ref-item.selected').length;
+  const btn=document.getElementById('btnDeleteSelected');
+  if(!btn)return;
+  btn.style.display=count>0?'':'none';
+  btn.textContent='🗑 Supprimer sélection ('+count+')';
+}
+
+function deleteSelectedRefs(){
+  const selectedIds=[...document.querySelectorAll('.ref-item.selected')].map(el=>parseInt(el.id.replace('ref-item-','')));
+  if(!selectedIds.length)return;
+  if(!confirm('Supprimer '+selectedIds.length+' aliment(s) ?'))return;
+  selectedIds.forEach(id=>{
+    refs=refs.filter(r=>r.id!==id);
+    calcItems=calcItems.filter(i=>i.refId!==id);
+  });
+  renderRefs(); renderCalcSelect(); renderCalcItems(); saveData();
+}
+
+function clearAllRefs(){
+  if(!refs.length)return;
+  if(!confirm('Supprimer tous les aliments de référence ?'))return;
+  refs=[];
+  calcItems=calcItems.filter(i=>false);
+  refNextId=100;
+  renderRefs(); renderCalcSelect(); renderCalcItems(); saveData();
 }
 
 function addRef(){
