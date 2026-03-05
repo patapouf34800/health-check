@@ -22,14 +22,26 @@
   ::-webkit-scrollbar-thumb{background:#f97316;border-radius:2px}
   ::-webkit-scrollbar-track{background:#111}
 
-  header{padding:20px 28px 0;border-bottom:1px solid rgba(255,255,255,0.06)}
-  h1{font-family:'Space Mono',monospace;font-size:22px;letter-spacing:-0.5px}
+  h1{font-family:'Space Mono',monospace;font-size:18px;letter-spacing:-0.5px}
   h1 span{color:#f97316}
-  .subtitle{font-family:monospace;font-size:11px;color:rgba(255,255,255,0.3);letter-spacing:1px;margin-top:3px}
-
+  .subtitle{font-family:monospace;font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:1px;margin-top:3px}
   .header-controls{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-top:14px}
   .control-group{display:flex;flex-direction:column;gap:4px}
   .control-group label{font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1px}
+
+  /* ── SIDEBAR LAYOUT ── */
+  .app-layout{display:flex;min-height:100vh}
+  .sidebar{width:200px;min-width:200px;background:#08080f;border-right:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;padding:20px 0;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto}
+  .sidebar-logo{padding:0 18px 24px;border-bottom:1px solid rgba(255,255,255,0.06)}
+  .sidebar-actions{padding:16px 12px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:6px}
+  .sidebar-save{font-size:10px;color:rgba(255,255,255,0.2);font-family:'Space Mono',monospace;letter-spacing:1px;padding:0 6px;text-align:center}
+  .sidebar-section{margin-top:8px}
+  .sidebar-section-label{font-size:9px;color:rgba(255,255,255,0.25);text-transform:uppercase;letter-spacing:2px;padding:8px 18px 4px}
+  .sidebar-tab{display:flex;align-items:center;gap:8px;background:transparent;border:none;cursor:pointer;padding:8px 18px;width:100%;text-align:left;font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.35);transition:all .2s;border-left:2px solid transparent}
+  .sidebar-tab:hover{color:rgba(255,255,255,0.7);background:rgba(255,255,255,0.03)}
+  .sidebar-tab.active{color:#f97316;background:rgba(249,115,22,0.08);border-left-color:#f97316}
+  .main-content{margin-left:200px;flex:1;min-width:0}
+  .main-topbar{padding:16px 28px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:flex-end;align-items:center;gap:8px}
   input[type=number],input[type=date],input[type=text]{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:8px;padding:8px 12px;font-size:14px;font-family:inherit;outline:none;transition:border-color .2s}
   input[type=number]{width:110px}
   input[type=date]{width:150px}
@@ -39,12 +51,11 @@
   select:focus{border-color:#f97316}
   select option{background:#1a1a2e;color:#fff}
 
-  .tabs{display:flex;gap:4px;margin-top:14px;flex-wrap:wrap}
-  .tab{background:transparent;border:none;cursor:pointer;padding:9px 16px;border-radius:8px 8px 0 0;font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;transition:all .2s;color:rgba(255,255,255,0.4)}
-  .tab.active{background:rgba(249,115,22,0.15);color:#f97316}
-  .tab:hover:not(.active){color:rgba(255,255,255,0.7)}
+  .tabs{display:none}
+  .tab{display:none}
 
   .content{padding:24px 28px;max-width:1100px;margin:0 auto}
+  @media(max-width:640px){.sidebar{width:100%;height:auto;position:relative;flex-direction:row;flex-wrap:wrap}.main-content{margin-left:0}}
   .panel{display:none}.panel.active{display:flex;flex-direction:column;gap:20px}
 
   .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px}
@@ -124,32 +135,46 @@
 </head>
 <body>
 
-<header>
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px">
-    <div>
-      <h1>CALORIE<span>TRACK</span></h1>
-      <p class="subtitle">SUIVI CALORIQUE CONTINU</p>
-    </div>
+<div class="app-layout">
 
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
-      <span id="saveIndicator" style="font-size:11px;color:rgba(255,255,255,0.25);font-family:'Space Mono',monospace;letter-spacing:1px"></span>
-      <button class="btn btn-secondary" onclick="exportData()" style="padding:6px 14px;font-size:11px">⬇ Exporter JSON</button>
-      <label class="btn btn-secondary" style="padding:6px 14px;font-size:11px;cursor:pointer">⬆ Importer JSON<input type="file" accept=".json" onchange="importData(event)" style="display:none"></label>
-    </div>
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <h1>CALORIE<span>TRACK</span></h1>
+    <p class="subtitle">SUIVI CALORIQUE</p>
   </div>
-  <div class="tabs">
-    <button class="tab active" onclick="showTab('dashboard',this)">Dashboard</button>
-    <button class="tab" onclick="showTab('deficit',this)">Déficit</button>
-    <button class="tab" onclick="showTab('poids',this)">Poids</button>
-    <button class="tab" onclick="showTab('saisie',this)">Saisie</button>
-    <button class="tab" onclick="showTab('calculateur',this)">Calculateur journée</button>
-    <button class="tab" onclick="showTab('references',this)">Références</button>
-    <button class="tab" onclick="showTab('tdee',this)">Besoin journalier</button>
-    <button class="tab" onclick="showTab('velo',this)">🚴 Vélo</button>
-    <button class="tab" onclick="showTab('saisievelo',this)">Saisie vélo</button>
+  <div class="sidebar-actions">
+    <button class="btn btn-secondary" onclick="exportData()" style="padding:6px 10px;font-size:10px;text-align:center">⬇ Exporter</button>
+    <label class="btn btn-secondary" style="padding:6px 10px;font-size:10px;cursor:pointer;text-align:center">⬆ Importer<input type="file" accept=".json" onchange="importData(event)" style="display:none"></label>
+    <span id="saveIndicator" class="sidebar-save"></span>
   </div>
-</header>
 
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Résumé</div>
+    <button class="sidebar-tab active" onclick="showTab('dashboard',this)">📊 Dashboard</button>
+    <button class="sidebar-tab" onclick="showTab('poids',this)">⚖️ Poids</button>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Repas</div>
+    <button class="sidebar-tab" onclick="showTab('deficit',this)">📉 Déficit</button>
+    <button class="sidebar-tab" onclick="showTab('saisie',this)">✏️ Saisie</button>
+    <button class="sidebar-tab" onclick="showTab('calculateur',this)">🧮 Calculateur</button>
+    <button class="sidebar-tab" onclick="showTab('references',this)">📚 Références</button>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Sport</div>
+    <button class="sidebar-tab" onclick="showTab('velo',this)">🚴 Vélo</button>
+    <button class="sidebar-tab" onclick="showTab('saisievelo',this)">➕ Saisie vélo</button>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Santé</div>
+    <button class="sidebar-tab" onclick="showTab('tdee',this)">🔥 Besoin journalier</button>
+  </div>
+</nav>
+
+<div class="main-content">
 <div class="content">
 
   <!-- DASHBOARD -->
@@ -706,6 +731,15 @@ function refresh(){
   document.querySelectorAll('.dash-period-btn').forEach(b=>b.classList.remove('active'));
   const dashBtns=document.querySelectorAll('.dash-period-btn');
   if(dashBtns[periodMap[activePeriod]]) dashBtns[periodMap[activePeriod]].classList.add('active');
+  // Sync sidebar active tab
+  const activePanel=document.querySelector('.panel.active');
+  if(activePanel){
+    const activeId=activePanel.id;
+    document.querySelectorAll('.sidebar-tab').forEach(t=>{
+      const onclick=t.getAttribute('onclick')||'';
+      t.classList.toggle('active', onclick.includes("'"+activeId+"'"));
+    });
+  }
 }
 
 function renderKPI(s){
@@ -1258,9 +1292,9 @@ function setDeficitPeriod(period, btn){
 
 function showTab(id,btn){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.sidebar-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  btn.classList.add('active');
+  if(btn) btn.classList.add('active');
   if(id==='saisie') autoFillDate();
   if(id==='calculateur') autoFillCalcDate();
   if(id==='tdee'){
@@ -1495,5 +1529,5 @@ if('serviceWorker' in navigator){
   });
 }
 </script>
-</body>
+</div></div></body>
 </html>
