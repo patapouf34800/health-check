@@ -1316,6 +1316,8 @@ function renderSanteSection(panelId){
     return;
   }
 
+  // Collecter données par marqueur
+  const dates = bilans.map(b => new Date(b.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit'}));
   const marqueurData = {};
   section.marqueurs.forEach(key => {
     bilans.forEach(b => {
@@ -1330,8 +1332,10 @@ function renderSanteSection(panelId){
     });
   });
 
-  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px">';
+  // Détruire anciens charts de cette section
+  Object.keys(charts).forEach(k => { if(k.startsWith('sante_'+panelId+'_')){ charts[k].destroy(); delete charts[k]; } });
 
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px">';
   Object.entries(marqueurData).forEach(([key, data]) => {
     if(!data.values.some(v=>v!==null)) return;
     const label = MARQUEUR_LABELS[key] || key.replace(/_/g,' ');
@@ -1340,66 +1344,91 @@ function renderSanteSection(panelId){
     let couleur = '#22c55e', statutLabel = 'Normal';
     if(data.refMin !== null && lastVal < data.refMin){ couleur='#38bdf8'; statutLabel='Bas'; }
     if(data.refMax !== null && lastVal > data.refMax){ couleur='#ef4444'; statutLabel='Élevé'; }
-
-    let barHtml = '';
-    if(data.refMin !== null && data.refMax !== null){
-      const pct = Math.max(0, Math.min(100, ((lastVal - data.refMin) / (data.refMax - data.refMin)) * 100));
-      barHtml = `<div style="position:relative;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;margin:8px 0">
-        <div style="position:absolute;left:0;width:${pct}%;height:100%;background:${couleur};border-radius:3px"></div>
-        <div style="position:absolute;left:0;top:-3px;height:12px;width:1px;background:rgba(255,255,255,0.15)"></div>
-        <div style="position:absolute;right:0;top:-3px;height:12px;width:1px;background:rgba(255,255,255,0.15)"></div>
-      </div>`;
-    }
-
-    const canvasId = 'spark_'+panelId+'_'+key;
     const refStr = (data.refMin!==null?data.refMin:'') + (data.refMin!==null&&data.refMax!==null?' – ':'') + (data.refMax!==null?data.refMax:'');
+    const canvasId = 'chart_'+panelId+'_'+key;
 
     html += `<div class="card" style="padding:14px 16px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
-        <span style="font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px">${label}</span>
-        <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:${couleur}22;color:${couleur}">${statutLabel}</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">${label}</span>
+        <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:${couleur}22;color:${couleur};font-family:'Space Mono',monospace">${statutLabel}</span>
       </div>
-      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px">
-        <span style="font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:${couleur}">${lastVal}</span>
+      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:12px">
+        <span style="font-family:'Space Mono',monospace;font-size:24px;font-weight:700;color:${couleur}">${lastVal}</span>
         <span style="font-size:11px;color:rgba(255,255,255,0.3)">${u}</span>
+        <span style="font-size:10px;color:rgba(255,255,255,0.2);margin-left:auto">Réf : ${refStr} ${u}</span>
       </div>
-      ${barHtml}
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
-        <span style="font-size:10px;color:rgba(255,255,255,0.2)">Réf : ${refStr} ${u}</span>
-        ${bilans.length>1?`<canvas id="${canvasId}" width="80" height="28"></canvas>`:'<span style="font-size:10px;color:rgba(255,255,255,0.15)">1 bilan</span>'}
-      </div>
-      ${data.note?`<div style="font-size:10px;color:rgba(249,115,22,0.6);margin-top:6px;font-style:italic">${data.note}</div>`:''}
+      <div style="position:relative;height:120px"><canvas id="${canvasId}"></canvas></div>
+      ${data.note?`<div style="font-size:10px;color:rgba(249,115,22,0.6);margin-top:8px;font-style:italic">ℹ️ ${data.note}</div>`:''}
     </div>`;
   });
-
   html += '</div>';
   el.innerHTML = html;
 
-  if(bilans.length > 1){
-    Object.entries(marqueurData).forEach(([key, data]) => {
-      const cvs = document.getElementById('spark_'+panelId+'_'+key); if(!cvs) return;
-      const vals = data.values.filter(v=>v!==null);
-      if(vals.length < 2) return;
-      const ctx = cvs.getContext('2d');
-      const W=80, H=28, pad=2;
-      const min=Math.min(...vals), max=Math.max(...vals);
-      const range = max-min || 1;
-      ctx.clearRect(0,0,W,H);
-      ctx.strokeStyle = data.refMax!==null && vals[vals.length-1]>data.refMax ? '#ef4444' :
-                        data.refMin!==null && vals[vals.length-1]<data.refMin ? '#38bdf8' : '#22c55e';
-      ctx.lineWidth=1.5; ctx.lineJoin='round';
-      ctx.beginPath();
-      vals.forEach((v,i)=>{
-        const x=pad+(i/(vals.length-1))*(W-pad*2);
-        const y=H-pad-((v-min)/range)*(H-pad*2);
-        i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-      });
-      ctx.stroke();
-      const lx=W-pad, ly=H-pad-((vals[vals.length-1]-min)/range)*(H-pad*2);
-      ctx.beginPath(); ctx.arc(lx,ly,2.5,0,Math.PI*2);
-      ctx.fillStyle=ctx.strokeStyle; ctx.fill();
+  // Dessiner les charts Chart.js
+  Object.entries(marqueurData).forEach(([key, data]) => {
+    if(!data.values.some(v=>v!==null)) return;
+    const canvasId = 'chart_'+panelId+'_'+key;
+    const cvs = document.getElementById(canvasId); if(!cvs) return;
+    const u = unites[key] || '';
+    const lastVal = [...data.values].reverse().find(v=>v!==null);
+    let couleur = '#22c55e';
+    if(data.refMin !== null && lastVal < data.refMin) couleur='#38bdf8';
+    if(data.refMax !== null && lastVal > data.refMax) couleur='#ef4444';
+
+    // Zone de référence en annotation via dataset
+    const allVals = data.values.filter(v=>v!==null);
+    const refMin = data.refMin, refMax = data.refMax;
+    const yPad = (Math.max(...allVals) - Math.min(...allVals)) * 0.3 || Math.abs(lastVal) * 0.1 || 1;
+    const yMin = Math.min(...allVals, refMin!==null?refMin:Infinity) - yPad;
+    const yMax = Math.max(...allVals, refMax!==null?refMax:-Infinity) + yPad;
+
+    // Dataset zone ref (bande verte en fond via fill entre deux lignes)
+    const refMinData = dates.map(() => refMin);
+    const refMaxData = dates.map(() => refMax);
+
+    const datasets = [];
+    if(refMin !== null && refMax !== null){
+      datasets.push({label:'Réf min',data:refMinData,borderColor:'transparent',backgroundColor:'rgba(34,197,94,0.07)',fill:'+1',pointRadius:0,borderWidth:0,tension:0});
+      datasets.push({label:'Réf max',data:refMaxData,borderColor:'rgba(34,197,94,0.15)',backgroundColor:'transparent',fill:false,pointRadius:0,borderWidth:1,borderDash:[4,4],tension:0});
+    } else if(refMax !== null){
+      datasets.push({label:'Réf max',data:refMaxData,borderColor:'rgba(34,197,94,0.25)',backgroundColor:'transparent',fill:false,pointRadius:0,borderWidth:1,borderDash:[4,4],tension:0});
+    } else if(refMin !== null){
+      datasets.push({label:'Réf min',data:refMinData,borderColor:'rgba(34,197,94,0.25)',backgroundColor:'transparent',fill:false,pointRadius:0,borderWidth:1,borderDash:[4,4],tension:0});
+    }
+    datasets.push({
+      label: key, data: data.values,
+      borderColor: couleur, backgroundColor: couleur,
+      pointRadius: data.values.map((v,i)=> v!==null ? (i===data.values.length-1?6:4) : 0),
+      pointBackgroundColor: couleur, pointBorderColor: '#050508', pointBorderWidth: 2,
+      borderWidth: 2, tension: 0.3, spanGaps: true, fill: false
     });
-  }
+
+    const chartKey = 'sante_'+panelId+'_'+key;
+    if(charts[chartKey]) charts[chartKey].destroy();
+    charts[chartKey] = new Chart(cvs.getContext('2d'), {
+      type: 'line',
+      data: { labels: dates, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(10,10,20,0.95)', titleColor: couleur,
+            bodyColor: '#fff', borderColor: couleur+'66', borderWidth: 1,
+            callbacks: {
+              label: ctx => ctx.dataset.label===key ? ctx.parsed.y + ' ' + u : null,
+              title: ctx => ctx[0].label
+            },
+            filter: item => item.dataset.label === key
+          }
+        },
+        scales: {
+          x: { grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'rgba(255,255,255,0.35)',font:{size:10}} },
+          y: { grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'rgba(255,255,255,0.35)',font:{size:10}}, min: isFinite(yMin)?yMin:undefined, max: isFinite(yMax)?yMax:undefined }
+        }
+      }
+    });
+  });
 }
 
 function renderAllSanteSections(){
