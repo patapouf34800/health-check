@@ -496,7 +496,7 @@
         <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
           <div class="control-group">
             <label>Nom du patient</label>
-            <input type="text" id="pdfPatientNom" value="AUGE Basile" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:8px;padding:7px 12px;font-size:13px;font-family:inherit;width:100%;box-sizing:border-box">
+            <input type="text" id="pdfPatientNom" placeholder="Nom Prénom" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:8px;padding:7px 12px;font-size:13px;font-family:inherit;width:100%;box-sizing:border-box">
           </div>
           <div class="control-group">
             <label>Médecin destinataire (optionnel)</label>
@@ -1462,7 +1462,7 @@ function genPdfSante(){
   doc.setFontSize(20); doc.setFont('helvetica','bold'); doc.setTextColor(...hexToRgb(c.text));
   doc.text(nom, 14, y); y+=8;
   doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...hexToRgb(c.muted));
-  doc.text('Né(e) le 30/10/1992 — Masculin', 14, y); y+=6;
+  
   if(medecin){ doc.text('À l\'attention de : ' + medecin, 14, y); y+=6; }
   doc.text(selectedBilans.length + ' bilan(s) analysé(s)', 14, y); y+=14;
 
@@ -2066,7 +2066,7 @@ function importBilan(event){
 
 function exportBilans(){
   if(!bilans.length){ alert('Aucun bilan à exporter.'); return; }
-  const data = { patient: 'AUGE Basile', unites_reference: window._bilanUnites || {}, bilans };
+  const data = { patient: document.getElementById('pdfPatientNom')?.value || '', unites_reference: window._bilanUnites || {}, bilans };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
