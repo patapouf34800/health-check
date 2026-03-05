@@ -529,9 +529,12 @@
     </div>
     <div class="chart-card" style="margin-bottom:20px">
       <div style="position:relative;height:280px"><canvas id="corrChart"></canvas></div>
-      <div id="corrInsight" style="margin-top:14px;font-size:12px;color:rgba(255,255,255,0.4);font-style:italic;border-left:2px solid rgba(249,115,22,0.4);padding-left:12px"></div>
     </div>
-    <div id="corrGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px"></div>
+    <div class="chart-card" style="margin-bottom:20px">
+      <div class="chart-title" style="margin-bottom:12px;font-size:13px">Contexte avant chaque bilan</div>
+      <div id="corrTable"></div>
+    </div>
+    <div id="corrGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px"></div>
   </div>
 
   <!-- DOCUMENTS -->
@@ -1442,227 +1445,271 @@ function initCorrMarqueur(){
   const sel = document.getElementById('corrMarqueur'); if(!sel) return;
   if(!bilans.length){ sel.innerHTML='<option>Aucun bilan</option>'; return; }
   const marqueurs = {};
-  bilans.forEach(b => Object.values(b.marqueurs).forEach(cat => Object.keys(cat).forEach(k => { marqueurs[k]=true; })));
-  // Priorité aux marqueurs pertinents
+  bilans.forEach(function(b){ Object.values(b.marqueurs).forEach(function(cat){ Object.keys(cat).forEach(function(k){ marqueurs[k]=true; }); }); });
   const priorite = ['HDL','LDL','cholesterol_total','triglycerides','ratio_CHOL_HDL','vitamine_D','ferritine','CRP','glucose','HbA1c','eGFR_CKD_EPI'];
-  const sorted = [...priorite.filter(k=>marqueurs[k]), ...Object.keys(marqueurs).filter(k=>!priorite.includes(k))];
-  sel.innerHTML = sorted.map(k=>`<option value="${k}">${MARQUEUR_LABELS[k]||k}</option>`).join('');
+  const sorted = priorite.filter(function(k){ return marqueurs[k]; }).concat(Object.keys(marqueurs).filter(function(k){ return priorite.indexOf(k)===-1; }));
+  const current = sel.value;
+  sel.innerHTML = sorted.map(function(k){ return '<option value="'+k+'">'+(MARQUEUR_LABELS[k]||k)+'</option>'; }).join('');
+  if(current && marqueurs[current]) sel.value = current;
 }
 
-function movingAvg(data, window){
-  return data.map((d,i)=>{
-    const slice = data.slice(Math.max(0,i-window+1), i+1).filter(v=>v!==null);
-    return slice.length ? slice.reduce((a,b)=>a+b,0)/slice.length : null;
+function movingAvg(data, win){
+  return data.map(function(d,i){
+    const slice = data.slice(Math.max(0,i-win+1), i+1).filter(function(v){ return v!==null; });
+    return slice.length ? slice.reduce(function(a,b){ return a+b; },0)/slice.length : null;
+  });
+}
+
+function getVirtualBilans(){
+  const testMode = document.getElementById('corrTestMode') ? document.getElementById('corrTestMode').checked : false;
+  if(!testMode || bilans.length < 2) return bilans;
+  const today = new Date().toISOString().split('T')[0];
+  return bilans.map(function(b, i){
+    const clone = JSON.parse(JSON.stringify(b));
+    clone.date = i === 0 ? '2025-12-01' : today;
+    return clone;
   });
 }
 
 function renderCorrelations(){
-  const sel = document.getElementById('corrMarqueur');
-  const metric = (document.getElementById('corrMetric')?document.getElementById('corrMetric').value:null);
-  const smooth = parseInt((document.getElementById('corrSmooth')?document.getElementById('corrSmooth').value:null) || 30);
-  if(!sel || !bilans.length || !days.length) return;
+  const sel = document.getElementById('corrMarqueur'); if(!sel) return;
+  const metric = document.getElementById('corrMetric') ? document.getElementById('corrMetric').value : 'deficit';
+  const smooth = parseInt((document.getElementById('corrSmooth') ? document.getElementById('corrSmooth').value : null) || 30);
+  if(!bilans.length || !days.length) return;
 
   const key = sel.value;
   const u = getUnite(key);
   const label = MARQUEUR_LABELS[key] || key;
-  const testMode = (document.getElementById('corrTestMode')?document.getElementById('corrTestMode').checked:false);
+  const vBilans = getVirtualBilans();
 
-  // Dates virtuelles en mode test : bilan 1 → 2025-12-01, bilan 2 → aujourd'hui
-  const today = new Date().toISOString().split('T')[0];
-  const virtualDates = ['2025-12-01', today];
+  // Valeurs du marqueur par bilan
+  const bilanPoints = vBilans.map(function(b){
+    let val = null, refMin = null, refMax = null;
+    Object.values(b.marqueurs).forEach(function(cat){ if(cat[key]){ val=cat[key].valeur; refMin=cat[key].refMin; refMax=cat[key].refMax; } });
+    return { date: b.date, val: val, refMin: refMin, refMax: refMax, labo: b.laboratoire };
+  }).filter(function(p){ return p.val !== null; });
 
-  // Construire série temporelle quotidienne
-  const allDates = [...days].sort((a,b)=>a.date.localeCompare(b.date));
-  const dateLabels = allDates.map(d => new Date(d.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit'}));
+  // Série quotidienne — union des dates de données + dates de bilans
+  const allDatesSet = {};
+  days.forEach(function(d){ allDatesSet[d.date] = true; });
+  bilanPoints.forEach(function(p){ allDatesSet[p.date] = true; });
+  const allDates = Object.keys(allDatesSet).sort();
 
-  let rawSerie = [];
-  if(metric === 'deficit'){
-    rawSerie = allDates.map(d => d.deficit != null ? d.deficit : null);
-  } else if(metric === 'calories'){
-    rawSerie = allDates.map(d => d.calories || null);
-  } else if(metric === 'poids'){
-    // Interpoler les pesées sur les dates
-    const peseeMap = {}; pesees.forEach(p=>{ peseeMap[p.date]=p.val; });
-    rawSerie = allDates.map(d => peseeMap[d.date] != null ? peseeMap[d.date] : null);
-  } else if(metric === 'velo_distance'){
-    const veloMap = {}; veloSessions.forEach(v=>{ if(!veloMap[v.date]) veloMap[v.date]=0; veloMap[v.date]+=v.distance; });
-    rawSerie = allDates.map(d => veloMap[d.date] != null ? veloMap[d.date] : 0);
-  } else if(metric === 'velo_vitesse'){
-    const veloMap = {}; veloSessions.forEach(v=>{ if(v.duree>0) veloMap[v.date]=(v.distance/(v.duree/60)); });
-    rawSerie = allDates.map(d => veloMap[d.date] != null ? veloMap[d.date] : null);
-  }
+  // Construire la métrique sur ces dates
+  const dayMap = {};
+  days.forEach(function(d){ dayMap[d.date] = d; });
+  const veloMap = {};
+  veloSessions.forEach(function(v){
+    if(!veloMap[v.date]) veloMap[v.date] = { dist:0, dur:0, n:0 };
+    veloMap[v.date].dist += v.distance;
+    veloMap[v.date].dur += v.duree;
+    veloMap[v.date].n++;
+  });
+  const peseeMap = {};
+  pesees.forEach(function(p){ peseeMap[p.date] = p.val; });
 
-  const smoothSerie = movingAvg(rawSerie, smooth);
-
-  // Valeurs du marqueur aux dates de bilan
-  const bilanPoints = bilans.map((b, i) => {
-    let val = null;
-    Object.values(b.marqueurs).forEach(cat => { if(cat[key]) val = cat[key].valeur; });
-    const refMin = Object.values(b.marqueurs).reduce((acc,cat)=>cat[key]?cat[key].refMin:acc, null);
-    const refMax = Object.values(b.marqueurs).reduce((acc,cat)=>cat[key]?cat[key].refMax:acc, null);
-    const date = testMode ? (virtualDates[i] || b.date) : b.date;
-    return { date, val, refMin, refMax, labo: b.laboratoire };
-  }).filter(p=>p.val!==null);
-
-  // Lignes verticales aux dates de bilan (via annotation plugin ou dataset nul)
-  // On crée un dataset par bilan pour les points marqueurs sur l'axe secondaire
-  const metricLabel = (document.getElementById('corrMetric')&&document.getElementById('corrMetric').selectedOptions[0]?document.getElementById('corrMetric').selectedOptions[0].text:null) || metric;
-
-  // Détruire ancien chart
-  if(charts['corr_main']){ charts['corr_main'].destroy(); delete charts['corr_main']; }
-
-  const cvs = document.getElementById('corrChart'); if(!cvs) return;
-
-  // Préparer les datasets de marqueur sanguin (un point par bilan, sur axe Y droit)
-  const bilanDatesIdx = bilanPoints.map(p => allDates.findIndex(d=>d.date===p.date));
-  const bilanLabelsX = bilanPoints.map(p => new Date(p.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit'}));
-
-  // Couleur selon statut
-  const bilanColors = bilanPoints.map(p => {
-    if(p.refMax!==null&&p.val>p.refMax) return '#ef4444';
-    if(p.refMin!==null&&p.val<p.refMin) return '#38bdf8';
-    return '#22c55e';
+  const rawSerie = allDates.map(function(date){
+    const d = dayMap[date];
+    if(metric === 'deficit') return d ? (d.deficit != null ? d.deficit : null) : null;
+    if(metric === 'calories') return d ? (d.calories || null) : null;
+    if(metric === 'poids') return peseeMap[date] != null ? peseeMap[date] : null;
+    if(metric === 'velo_distance') return veloMap[date] ? veloMap[date].dist : null;
+    if(metric === 'velo_vitesse') return (veloMap[date] && veloMap[date].dur > 0) ? veloMap[date].dist/(veloMap[date].dur/60) : null;
+    return null;
   });
 
-  // Dataset lignes verticales : on superpose des données null partout sauf à la date du bilan
-  const vertDatasets = bilanPoints.map((p,i)=>{
-    const arr = allDates.map(()=>null);
-    const idx = allDates.findIndex(d=>d.date===p.date);
-    // On ne peut pas faire vrai vertical avec Chart.js sans plugin — on place juste un gros point
+  const smoothSerie = movingAvg(rawSerie, smooth);
+  const metricLabel = document.getElementById('corrMetric') ? document.getElementById('corrMetric').selectedOptions[0].text : metric;
+
+  // ── GRAPH ──
+  if(charts['corr_main']){ charts['corr_main'].destroy(); delete charts['corr_main']; }
+  const cvs = document.getElementById('corrChart'); if(!cvs) return;
+
+  const dateLabels = allDates.map(function(d){
+    return new Date(d).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit'});
+  });
+
+  // Datasets marqueurs : ligne horizontale sur toute la durée + point au bilan
+  const bilanDatasets = bilanPoints.map(function(p, i){
+    const col = p.refMax!==null&&p.val>p.refMax ? '#ef4444' : p.refMin!==null&&p.val<p.refMin ? '#38bdf8' : '#22c55e';
+    const bilanDate = new Date(p.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'2-digit'});
+    // Ligne de référence horizontale au niveau de la valeur
     return {
-      label: `Bilan ${new Date(p.date).toLocaleDateString('fr-FR',{month:'short',year:'2-digit'})}`,
-      data: allDates.map((d,i2)=> i2===idx ? p.val : null),
+      label: label+' — '+bilanDate,
+      data: allDates.map(function(d){ return d === p.date ? p.val : null; }),
       yAxisID: 'y2',
-      borderColor: bilanColors[i],
-      backgroundColor: bilanColors[i],
-      pointRadius: allDates.map((_,i2)=>i2===idx?8:0),
+      borderColor: col,
+      backgroundColor: col,
+      pointRadius: allDates.map(function(d){ return d === p.date ? 10 : 0; }),
       pointStyle: 'circle',
-      borderWidth: 2,
+      pointBorderColor: '#050508',
+      pointBorderWidth: 2,
+      borderWidth: 0,
       spanGaps: false,
       showLine: false,
       type: 'scatter',
     };
   });
 
+  // Ligne verticale simulée : dataset avec deux points (min/max de l'axe) à la date du bilan
+  // On l'approche avec une barre verticale CSS overlay — plus simple, on marque juste visuellement
+
   charts['corr_main'] = new Chart(cvs.getContext('2d'), {
     type: 'line',
     data: {
       labels: dateLabels,
-      datasets: [
-        {
-          label: metricLabel,
-          data: smoothSerie,
-          yAxisID: 'y1',
-          borderColor: 'rgba(249,115,22,0.8)',
-          backgroundColor: 'rgba(249,115,22,0.06)',
-          borderWidth: 2,
-          pointRadius: 0,
-          fill: metric==='deficit',
-          tension: 0.3,
-          spanGaps: true,
-        },
-        ...vertDatasets
-      ]
+      datasets: [{
+        label: metricLabel + ' (moy. '+smooth+'j)',
+        data: smoothSerie,
+        yAxisID: 'y1',
+        borderColor: 'rgba(249,115,22,0.85)',
+        backgroundColor: 'rgba(249,115,22,0.05)',
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: false,
+        tension: 0.3,
+        spanGaps: true,
+      }].concat(bilanDatasets)
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode:'index', intersect:false },
       plugins: {
-        legend: { display:true, labels:{ color:'rgba(255,255,255,0.4)', font:{size:10}, boxWidth:12 } },
+        legend: { display:true, labels:{ color:'rgba(255,255,255,0.35)', font:{size:10}, boxWidth:10, filter: function(item){ return item.text.indexOf('—')>-1 || item.datasetIndex===0; } } },
         tooltip: {
           backgroundColor:'rgba(10,10,20,0.95)', borderColor:'rgba(249,115,22,0.3)', borderWidth:1,
-          titleColor:'rgba(255,255,255,0.7)', bodyColor:'rgba(255,255,255,0.6)',
+          titleColor:'rgba(255,255,255,0.6)', bodyColor:'rgba(255,255,255,0.55)',
           callbacks: {
-            label: ctx => {
-              if(ctx.dataset.yAxisID==='y1') return `${ctx.dataset.label}: ${(ctx.parsed.y!=null?ctx.parsed.y.toFixed(0):null)}`;
-              if(ctx.parsed.y!==null) return `${ctx.dataset.label}: ${ctx.parsed.y} ${u}`;
-              return null;
+            label: function(ctx){
+              if(ctx.parsed.y === null) return null;
+              if(ctx.dataset.yAxisID === 'y1') return metricLabel+' : '+Math.round(ctx.parsed.y);
+              return ctx.dataset.label+' : '+ctx.parsed.y+' '+u;
             }
           }
         }
       },
       scales: {
-        x: { grid:{color:'rgba(255,255,255,0.03)'}, ticks:{color:'rgba(255,255,255,0.25)',font:{size:9},maxTicksLimit:12} },
+        x: {
+          grid:{color:'rgba(255,255,255,0.03)'},
+          ticks:{color:'rgba(255,255,255,0.2)',font:{size:9},maxTicksLimit:10}
+        },
         y1: {
           type:'linear', position:'left',
           grid:{color:'rgba(255,255,255,0.04)'},
-          ticks:{color:'rgba(249,115,22,0.6)',font:{size:9}},
-          title:{display:true, text:metricLabel, color:'rgba(249,115,22,0.5)', font:{size:9}}
+          ticks:{color:'rgba(249,115,22,0.5)',font:{size:9}},
+          title:{display:true, text:metricLabel, color:'rgba(249,115,22,0.4)', font:{size:9}}
         },
         y2: {
           type:'linear', position:'right',
           grid:{drawOnChartArea:false},
-          ticks:{color:'rgba(255,255,255,0.35)',font:{size:9}},
-          title:{display:true, text:`${label} (${u})`, color:'rgba(255,255,255,0.35)', font:{size:9}}
+          ticks:{color:'rgba(255,255,255,0.3)',font:{size:9}},
+          title:{display:true, text:label+' ('+u+')', color:'rgba(255,255,255,0.3)', font:{size:9}}
         }
       }
     }
   });
 
-  // Insight automatique
-  renderCorrInsight(key, metric, bilanPoints, smoothSerie, allDates, smooth);
+  // ── TABLEAU AVANT / APRÈS ──
+  renderCorrTable(key, label, u, metric, metricLabel, bilanPoints, allDates, rawSerie, smoothSerie, smooth);
 
-  // Mini-cards de toutes les corrélations possibles
-  renderCorrGrid(metric, smooth, allDates, rawSerie, smoothSerie);
+  // ── MINI CARDS ──
+  renderCorrGrid();
 }
 
-function renderCorrInsight(key, metric, bilanPoints, smoothSerie, allDates, smooth){
-  const el = document.getElementById('corrInsight'); if(!el) return;
-  if(bilanPoints.length < 2){ el.textContent = 'Ajoute un 2ème bilan pour voir évoluer les tendances.'; return; }
+function renderCorrTable(key, label, u, metric, metricLabel, bilanPoints, allDates, rawSerie, smoothSerie, smooth){
+  const el = document.getElementById('corrTable'); if(!el) return;
+  if(bilanPoints.length < 1){ el.innerHTML=''; return; }
 
-  const label = MARQUEUR_LABELS[key] || key;
-  const metricLabel = (document.getElementById('corrMetric')&&document.getElementById('corrMetric').selectedOptions[0]?document.getElementById('corrMetric').selectedOptions[0].text:null) || metric;
-
-  // Calculer la moyenne de la métrique dans les N jours AVANT chaque bilan
-  const window = smooth;
-  const bilanAvgs = bilanPoints.map(p => {
-    const idx = allDates.findIndex(d=>d.date===p.date);
-    const slice = smoothSerie.slice(Math.max(0,idx-window), idx).filter(v=>v!==null);
-    return slice.length ? slice.reduce((a,b)=>a+b,0)/slice.length : null;
+  // Pour chaque bilan : moyenne de la métrique sur les N jours AVANT
+  const rows = bilanPoints.map(function(p){
+    const idx = allDates.indexOf(p.date);
+    const before = [];
+    for(let i = Math.max(0, idx-smooth); i < idx; i++){
+      if(rawSerie[i] !== null) before.push(rawSerie[i]);
+    }
+    const avg = before.length ? before.reduce(function(a,b){ return a+b; },0)/before.length : null;
+    const col = p.refMax!==null&&p.val>p.refMax ? '#ef4444' : p.refMin!==null&&p.val<p.refMin ? '#38bdf8' : '#22c55e';
+    const statut = p.refMax!==null&&p.val>p.refMax ? 'Élevé' : p.refMin!==null&&p.val<p.refMin ? 'Bas' : 'Normal';
+    return { p:p, avg:avg, col:col, statut:statut };
   });
 
-  const marqDelta = bilanPoints[bilanPoints.length-1].val - bilanPoints[0].val;
-  const metricDelta = bilanAvgs[bilanAvgs.length-1] !== null && bilanAvgs[0] !== null ? bilanAvgs[bilanAvgs.length-1] - bilanAvgs[0] : null;
+  // Delta marqueur et delta métrique
+  let insight = '';
+  if(rows.length >= 2){
+    const r1 = rows[0], r2 = rows[rows.length-1];
+    const marqDelta = r2.p.val - r1.p.val;
+    const sign = marqDelta > 0 ? '+' : '';
+    const dir = MARQUEUR_DIR[key] || 'neutral';
+    const dc = deltaColor(key, marqDelta, r2.statut);
+    const arrow = marqDelta > 0 ? '↑' : marqDelta < 0 ? '↓' : '→';
 
-  const marqDir = MARQUEUR_DIR[key] || 'neutral';
-  const marqTrend = marqDelta > 0 ? '↑' : marqDelta < 0 ? '↓' : '→';
-  const marqGood = (marqDir==='low'&&marqDelta<0)||(marqDir==='high'&&marqDelta>0)||(marqDir==='neutral');
-
-  let insight = `${label} : ${marqTrend} ${marqDelta > 0 ? '+' : ''}${marqDelta.toFixed(2)} entre les deux bilans`;
-  if(metricDelta !== null){
-    const metricTrend = metricDelta > 0 ? '↑' : '↓';
-    insight += `. Moyenne "${metricLabel}" ${metricTrend} ${metricDelta > 0 ? '+' : ''}${metricDelta.toFixed(0)} dans les ${window}j précédant chaque bilan.`;
-    // Cohérence direction
-    const coherent = (metric==='deficit'&&marqDir==='low'&&marqDelta<0&&metricDelta>0)
-      || (metric==='velo_distance'&&marqDir==='high'&&marqDelta>0&&metricDelta>0)
-      || (metric==='velo_distance'&&(key==='triglycerides'||key==='cholesterol_total')&&marqDelta<0&&metricDelta>0);
-    if(coherent) insight += ' — tendance cohérente avec la littérature.';
+    // Interprétation
+    let interp = '';
+    if(r1.avg !== null && r2.avg !== null){
+      const mDelta = r2.avg - r1.avg;
+      const mSign = mDelta > 0 ? '+' : '';
+      const mArrow = mDelta > 0 ? '↑' : '↓';
+      const coherent = (dir==='low'&&marqDelta<0&&mDelta<0)||(dir==='high'&&marqDelta>0&&mDelta>0)||(dir==='low'&&marqDelta>0&&mDelta>0)||(dir==='high'&&marqDelta<0&&mDelta<0);
+      interp = metricLabel+' '+mArrow+' '+mSign+Math.round(mDelta)+' en moyenne entre les deux périodes. ';
+      if(dir==='low'&&marqDelta<0&&mDelta<0) interp += 'La baisse de '+metricLabel.toLowerCase()+' précède une amélioration du marqueur — tendance cohérente.';
+      else if(dir==='low'&&marqDelta>0&&mDelta>0) interp += 'La hausse de '+metricLabel.toLowerCase()+' précède une dégradation — à surveiller.';
+      else if(dir==='high'&&marqDelta>0&&mDelta>0) interp += 'La hausse de '+metricLabel.toLowerCase()+' précède une amélioration — tendance cohérente.';
+      else interp += 'Évolution à confirmer avec davantage de bilans.';
+    }
+    insight = '<div style="font-size:11px;color:rgba(255,255,255,0.35);border-left:2px solid rgba(249,115,22,0.4);padding-left:12px;margin-top:14px;font-style:italic">'+
+      label+' : <span style="color:'+dc+';font-family:\'Space Mono\',monospace">'+arrow+' '+sign+marqDelta.toFixed(2)+' '+u+'</span> entre les deux bilans. '+interp+'</div>';
   }
-  if(!marqGood) insight += ` ⚠️ Évolution défavorable sur ce marqueur.`;
 
-  el.textContent = insight;
+  let html = '<div style="font-size:11px;color:rgba(255,255,255,0.25);margin-bottom:12px">Moyenne de <strong style="color:rgba(249,115,22,0.7)">'+metricLabel+'</strong> dans les <strong style="color:rgba(255,255,255,0.4)">'+smooth+' jours</strong> précédant chaque bilan</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">';
+
+  rows.forEach(function(row){
+    const date = new Date(row.p.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
+    const testMode = document.getElementById('corrTestMode') ? document.getElementById('corrTestMode').checked : false;
+    const dateLabel = testMode ? date+' <span style="font-size:9px;color:rgba(249,115,22,0.5)">(test)</span>' : date;
+
+    html += '<div class="card" style="padding:14px 16px;border-left:3px solid '+row.col+'">';
+    html += '<div style="font-size:10px;color:rgba(255,255,255,0.25);margin-bottom:6px">'+dateLabel+' — '+row.p.labo+'</div>';
+    html += '<div style="display:flex;justify-content:space-between;align-items:flex-end">';
+    // Valeur marqueur
+    html += '<div><div style="font-size:9px;color:rgba(255,255,255,0.3);text-transform:uppercase;margin-bottom:2px">'+label+'</div>';
+    html += '<div style="font-family:\'Space Mono\',monospace;font-size:20px;font-weight:700;color:'+row.col+'">'+row.p.val+' <span style="font-size:10px;font-weight:normal;color:rgba(255,255,255,0.3)">'+u+'</span></div>';
+    html += '<div style="font-size:9px;color:rgba(255,255,255,0.2)">'+row.statut+'</div></div>';
+    // Moyenne métrique avant
+    html += '<div style="text-align:right"><div style="font-size:9px;color:rgba(249,115,22,0.5);text-transform:uppercase;margin-bottom:2px">'+metricLabel.split(' ')[0]+'<br>'+smooth+'j avant</div>';
+    if(row.avg !== null){
+      html += '<div style="font-family:\'Space Mono\',monospace;font-size:18px;font-weight:700;color:rgba(249,115,22,0.85)">'+Math.round(row.avg)+'</div>';
+    } else {
+      html += '<div style="font-size:11px;color:rgba(255,255,255,0.2)">—</div>';
+    }
+    html += '</div></div></div>';
+  });
+
+  html += '</div>';
+  html += insight;
+  el.innerHTML = html;
 }
 
-function renderCorrGrid(metric, smooth, allDates, rawSerie, smoothSerie){
+function renderCorrGrid(){
   const el = document.getElementById('corrGrid'); if(!el) return;
-  if(!bilans.length || bilans.length < 2){ el.innerHTML=''; return; }
+  const vBilans = getVirtualBilans();
+  if(vBilans.length < 2){ el.innerHTML=''; return; }
 
-  // Afficher mini-cards pour tous les marqueurs présents dans les deux bilans
   const marqueurs = {};
-  bilans.forEach(b => Object.values(b.marqueurs).forEach(cat => Object.entries(cat).forEach(([k,m])=>{
-    if(!marqueurs[k]) marqueurs[k]={vals:[], refMin:m.refMin, refMax:m.refMax};
-    marqueurs[k].vals.push({date:b.date, val:m.valeur});
-  })));
+  vBilans.forEach(function(b){
+    Object.values(b.marqueurs).forEach(function(cat){
+      Object.entries(cat).forEach(function(km){
+        var k=km[0], m=km[1];
+        if(!marqueurs[k]) marqueurs[k]={vals:[],refMin:m.refMin,refMax:m.refMax};
+        marqueurs[k].vals.push({date:b.date, val:m.valeur});
+      });
+    });
+  });
 
-  const twoBilans = Object.entries(marqueurs).filter(function(e){return e[1].vals.length>=2;});
+  const twoBilans = Object.entries(marqueurs).filter(function(e){ return e[1].vals.length>=2; });
+  if(!twoBilans.length){ el.innerHTML=''; return; }
 
-  // Calculer corrélation simple (direction cohérente ou non)
-  const metricLabel = (document.getElementById('corrMetric')&&document.getElementById('corrMetric').selectedOptions[0]?document.getElementById('corrMetric').selectedOptions[0].text:null) || metric;
-
-  let html = `<div style="grid-column:1/-1;font-size:11px;color:rgba(255,255,255,0.2);margin-bottom:4px">Évolution de tous les marqueurs entre les deux bilans — ${twoBilans.length} marqueurs comparables</div>`;
-
-  // Trier : hors norme d'abord, puis défavorables, puis normaux
-  const sorted = twoBilans.sort(function(ea,eb){
+  twoBilans.sort(function(ea,eb){
     var da=ea[1],db=eb[1];
     var lastA=da.vals[da.vals.length-1].val, lastB=db.vals[db.vals.length-1].val;
     var badA=(da.refMax!==null&&lastA>da.refMax)||(da.refMin!==null&&lastA<da.refMin);
@@ -1670,8 +1717,11 @@ function renderCorrGrid(metric, smooth, allDates, rawSerie, smoothSerie){
     return (badB?1:0)-(badA?1:0);
   });
 
-  sorted.forEach(function(entry){ var key=entry[0], data=entry[1];
-    const label = MARQUEUR_LABELS[key]||key;
+  let html = '<div style="grid-column:1/-1;font-size:11px;color:rgba(255,255,255,0.2);margin-bottom:8px;margin-top:8px">Évolution de tous les marqueurs entre les deux bilans — '+twoBilans.length+' comparables</div>';
+
+  twoBilans.forEach(function(entry){
+    var key=entry[0], data=entry[1];
+    const lbl = MARQUEUR_LABELS[key]||key;
     const u = getUnite(key);
     const first = data.vals[0].val, last = data.vals[data.vals.length-1].val;
     const diff = last - first;
@@ -1681,21 +1731,15 @@ function renderCorrGrid(metric, smooth, allDates, rawSerie, smoothSerie){
     const statCol = (data.refMax!==null&&last>data.refMax)?'#ef4444':(data.refMin!==null&&last<data.refMin)?'#38bdf8':'#22c55e';
     const arrow = diff>0?'↑':diff<0?'↓':'→';
 
-    html += `<div class="card" style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px">
-      <div>
-        <div style="font-size:10px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">${label}</div>
-        <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:${statCol}">${last} <span style="font-size:10px;font-weight:normal;color:rgba(255,255,255,0.3)">${u}</span></div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-family:'Space Mono',monospace;font-size:13px;color:${dc}">${arrow} ${sign}${diff.toFixed(2)}</div>
-        <div style="font-size:10px;color:${dc};opacity:0.8">${sign}${pct}%</div>
-      </div>
-    </div>`;
+    html += '<div class="card" style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px">';
+    html += '<div><div style="font-size:10px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">'+lbl+'</div>';
+    html += '<div style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:'+statCol+'">'+last+' <span style="font-size:10px;font-weight:normal;color:rgba(255,255,255,0.3)">'+u+'</span></div></div>';
+    html += '<div style="text-align:right"><div style="font-family:\'Space Mono\',monospace;font-size:13px;color:'+dc+'">'+arrow+' '+sign+diff.toFixed(2)+'</div>';
+    html += '<div style="font-size:10px;color:'+dc+';opacity:0.8">'+sign+pct+'%</div></div></div>';
   });
 
   el.innerHTML = html;
 }
-
 /* ── CORRÉLATIONS ── */
 const UNITES_FALLBACK = {
   hematies:'T/L', hemoglobine:'g/L', hematocrite:'%', MCV:'fL', MCH:'pg', MCHC:'g/L',
