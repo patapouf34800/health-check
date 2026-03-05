@@ -128,6 +128,9 @@
   .day-edit-btn{background:none;border:none;color:rgba(255,255,255,0.2);cursor:pointer;font-size:13px;padding:0 4px;transition:color .2s;line-height:1}
   .day-edit-btn:hover{color:#f97316}
   .empty-msg{color:rgba(255,255,255,0.25);font-size:13px;text-align:center;padding:24px 0;font-style:italic}
+  .mq-label{cursor:help;border-bottom:1px dashed rgba(255,255,255,0.2);display:inline-block;position:relative}
+  .mq-label:hover::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#0e0e1a;border:1px solid rgba(249,115,22,0.3);color:rgba(255,255,255,0.85);font-size:11px;line-height:1.5;padding:8px 12px;border-radius:8px;white-space:pre-wrap;width:240px;z-index:999;pointer-events:none;font-family:inherit;font-style:normal;font-weight:normal;text-transform:none;letter-spacing:0;box-shadow:0 4px 20px rgba(0,0,0,0.5)}
+  .mq-label:hover::before{content:'';position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:rgba(249,115,22,0.3);z-index:999}
   .period-btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.4);border-radius:7px;padding:6px 12px;cursor:pointer;font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;transition:all .2s}
   .period-btn:hover{color:rgba(255,255,255,0.7);border-color:rgba(255,255,255,0.2)}
   .period-btn.active{background:rgba(249,115,22,0.15);border-color:rgba(249,115,22,0.4);color:#f97316}
@@ -1350,6 +1353,45 @@ const MARQUEUR_LABELS = {
   TSH:'TSH',
 };
 
+const MARQUEUR_INFO = {
+  hematies:       { organe:'🩸 Sang', def:'Globules rouges — transportent l\'oxygène des poumons vers les organes via l\'hémoglobine.', haut:'Trop de globules rouges : risque d\'épaississement du sang (polyglobulie).', bas:'Manque de globules rouges : signe possible d\'anémie.' },
+  hemoglobine:    { organe:'🩸 Sang', def:'Protéine dans les globules rouges qui fixe et transporte l\'oxygène.', haut:'Hémoglobine élevée : peut indiquer une déshydratation ou une polyglobulie.', bas:'Hémoglobine basse : anémie — fatigue, essoufflement, pâleur.' },
+  hematocrite:    { organe:'🩸 Sang', def:'Proportion du volume sanguin occupée par les globules rouges (en %).', haut:'Trop élevé : sang trop épais, risque de thrombose.', bas:'Trop bas : signe d\'anémie ou de dilution du sang.' },
+  MCV:            { organe:'🩸 Sang', def:'Volume Globulaire Moyen — taille moyenne des globules rouges.', haut:'Globules rouges trop grands (macrocytose) : souvent carence en B12 ou folates.', bas:'Globules rouges trop petits (microcytose) : souvent carence en fer ou hémoglobinopathie.' },
+  MCH:            { organe:'🩸 Sang', def:'Teneur Corpusculaire Moyenne en Hémoglobine — quantité d\'hémoglobine par globule rouge.', haut:'Globules rouges trop chargés en hémoglobine.', bas:'Globules rouges pauvres en hémoglobine — anémie ferriprive probable.' },
+  MCHC:           { organe:'🩸 Sang', def:'Concentration Corpusculaire Moyenne en Hémoglobine — densité d\'hémoglobine dans les globules rouges.', haut:'Concentration anormalement élevée — rare, peut indiquer une sphérocytose.', bas:'Globules rouges trop "dilués" en hémoglobine — anémie hypochrome.' },
+  leucocytes:     { organe:'🛡️ Immunité', def:'Globules blancs — cellules du système immunitaire qui défendent l\'organisme contre les infections.', haut:'Trop de globules blancs (hyperleucocytose) : infection, inflammation ou stress.', bas:'Trop peu (leucopénie) : déficit immunitaire, risque accru d\'infection.' },
+  neutrophiles_abs:{ organe:'🛡️ Immunité', def:'Type de globules blancs — première ligne de défense contre les bactéries.', haut:'Élevé : infection bactérienne ou inflammation active.', bas:'Bas (neutropénie) : vulnérabilité aux infections bactériennes.' },
+  eosinophiles_abs:{ organe:'🛡️ Immunité', def:'Globules blancs impliqués dans les réactions allergiques et la lutte contre les parasites.', haut:'Élevé : allergie, asthme, ou infection parasitaire.', bas:'Rarement significatif seul.' },
+  basophiles_abs: { organe:'🛡️ Immunité', def:'Globules blancs rares, impliqués dans les réactions allergiques et inflammatoires.', haut:'Élévation rare — peut suggérer une réaction allergique ou une pathologie hématologique.', bas:'Rarement significatif.' },
+  lymphocytes_abs:{ organe:'🛡️ Immunité', def:'Globules blancs responsables de l\'immunité spécifique : produisent les anticorps (lymphocytes B) et détruisent les cellules infectées (lymphocytes T).', haut:'Lymphocytose : infection virale (EBV, CMV), ou plus rarement leucémie lymphoïde.', bas:'Lymphopénie : déficit immunitaire, stress sévère, certains traitements.' },
+  monocytes_abs:  { organe:'🛡️ Immunité', def:'Globules blancs qui "nettoient" les débris cellulaires et participent à la réponse immunitaire.', haut:'Élevé : infection chronique, inflammation ou récupération après une infection.', bas:'Rarement significatif seul.' },
+  plaquettes:     { organe:'🩸 Coagulation', def:'Petites cellules sanguines qui permettent la coagulation et stoppent les saignements.', haut:'Trop de plaquettes (thrombocytose) : risque de caillots.', bas:'Trop peu (thrombopénie) : risque de saignements prolongés.' },
+  sodium:         { organe:'💧 Reins / Hydratation', def:'Électrolyte principal du sang — régule l\'équilibre hydrique et la pression osmotique.', haut:'Hypernatrémie : déshydratation ou troubles rénaux.', bas:'Hyponatrémie : excès d\'eau, vomissements, ou certains médicaments.' },
+  potassium:      { organe:'❤️ Cœur / Muscles', def:'Électrolyte essentiel au fonctionnement du cœur et des muscles, régulé par les reins.', haut:'Hyperkaliémie : risque de troubles du rythme cardiaque.', bas:'Hypokaliémie : crampes, faiblesse musculaire, arythmies.' },
+  creatinine:     { organe:'🫘 Reins', def:'Déchet musculaire filtré par les reins. Son taux reflète directement la fonction rénale.', haut:'Rein moins efficace à filtrer les déchets — à surveiller.', bas:'Rarement préoccupant, peut indiquer une masse musculaire faible.' },
+  eGFR_CKD_EPI:  { organe:'🫘 Reins', def:'Débit de Filtration Glomérulaire estimé — mesure la capacité des reins à filtrer le sang (en mL/min). La formule CKD-EPI est la plus précise.', haut:'Au-dessus de la norme : peut refléter une hyperfiltration (ex. début diabète).', bas:'Filtration insuffisante — les reins fonctionnent moins bien. <60 = insuffisance rénale.' },
+  eGFR_MDRD:     { organe:'🫘 Reins', def:'Autre formule d\'estimation du débit de filtration glomérulaire. Moins précise que CKD-EPI au-dessus de 60 mL/min.', haut:'', bas:'Filtration réduite — signe d\'atteinte rénale.' },
+  glucose:        { organe:'🍬 Pancréas / Métabolisme', def:'Taux de sucre dans le sang à jeun. Régulé par l\'insuline produite par le pancréas.', haut:'Glycémie élevée : prédiabète ou diabète possible.', bas:'Hypoglycémie : peut causer malaises, vertiges, confusion.' },
+  HbA1c:          { organe:'🍬 Pancréas / Métabolisme', def:'Hémoglobine glyquée — reflet de la glycémie moyenne sur les 2-3 derniers mois. Indicateur clé du contrôle du diabète.', haut:'Glycémie chroniquement élevée : risque de diabète ou déséquilibre diabétique.', bas:'Rarement problématique.' },
+  GOT_AST:        { organe:'🫀 Foie / Muscles', def:'Enzyme présente dans le foie et les muscles. Son élévation peut signaler une souffrance hépatique ou musculaire.', haut:'Foie ou muscles sollicités ou endommagés. Peut s\'élever après effort intense.', bas:'Pas significatif.' },
+  GPT_ALT:        { organe:'🫀 Foie', def:'Enzyme quasi spécifique du foie. Marqueur plus précis que l\'AST pour évaluer la santé hépatique.', haut:'Inflammation ou lésion hépatique — alcool, médicaments, stéatose ou hépatite.', bas:'Pas significatif.' },
+  gamma_GT:       { organe:'🫀 Foie / Voies biliaires', def:'Enzyme hépatique sensible à l\'alcool, aux médicaments et aux maladies des voies biliaires.', haut:'Élevé : consommation d\'alcool, médicaments hépatotoxiques, ou cholestase.', bas:'Pas significatif.' },
+  CK_CPK:         { organe:'💪 Muscles / Cœur', def:'Créatine kinase — enzyme musculaire libérée lors de la destruction des fibres musculaires. Marqueur d\'effort intense ou de lésion.', haut:'Muscles fortement sollicités (sport intense) ou lésion musculaire/cardiaque.', bas:'Pas significatif.' },
+  CRP:            { organe:'🛡️ Inflammation', def:'Protéine C-Réactive — marqueur d\'inflammation ou d\'infection aigu produit par le foie.', haut:'Inflammation active, infection ou réaction immunitaire en cours.', bas:'Pas significatif.' },
+  sedimentation:  { organe:'🛡️ Inflammation', def:'Vitesse de sédimentation des globules rouges — marqueur général d\'inflammation, moins spécifique que la CRP.', haut:'Inflammation chronique, infection, ou maladie auto-immune.', bas:'Pas significatif.' },
+  cholesterol_total:{ organe:'❤️ Cardiovasculaire', def:'Quantité totale de cholestérol dans le sang — lipide essentiel mais qui devient problématique en excès.', haut:'Risque cardiovasculaire accru si associé à un LDL élevé ou HDL bas.', bas:'Rarement problématique.' },
+  triglycerides:  { organe:'❤️ Cardiovasculaire / Foie', def:'Graisses circulant dans le sang — source d\'énergie, mais facteur de risque cardiovasculaire si chroniquement élevées.', haut:'Alimentation riche en sucres/graisses, sédentarité, alcool. Risque cardio et pancréatite.', bas:'Rarement problématique.' },
+  HDL:            { organe:'❤️ Cardiovasculaire', def:'"Bon" cholestérol — transporte le cholestérol des artères vers le foie pour élimination. Protecteur cardiovasculaire.', haut:'Très bon signe — HDL élevé est protecteur.', bas:'HDL bas : facteur de risque cardiovasculaire indépendant. Favorisé par sédentarité et tabac.' },
+  LDL:            { organe:'❤️ Cardiovasculaire', def:'"Mauvais" cholestérol — peut se déposer sur les parois artérielles et former des plaques d\'athérome.', haut:'Risque d\'athérosclérose et de maladies cardiovasculaires — à traiter selon le profil de risque global.', bas:'Généralement favorable.' },
+  VLDL:           { organe:'❤️ Cardiovasculaire', def:'Très faibles densité lipoprotéines — transportent les triglycérides du foie vers les tissus. Précurseur du LDL.', haut:'Élevé si triglycérides hauts — facteur de risque cardiovasculaire.', bas:'Pas significatif.' },
+  ratio_CHOL_HDL: { organe:'❤️ Cardiovasculaire', def:'Rapport cholestérol total / HDL — indicateur synthétique du risque cardiovasculaire. Plus il est bas, mieux c\'est.', haut:'Risque cardiovasculaire augmenté. Idéalement < 4, acceptable < 5.', bas:'Très favorable — bon équilibre lipidique.' },
+  fer:            { organe:'🩸 Sang / Métabolisme', def:'Minéral essentiel à la production d\'hémoglobine et au transport de l\'oxygène.', haut:'Excès de fer circulant — peut indiquer une hémolyse ou une surcharge.', bas:'Carence en fer — souvent à l\'origine d\'une anémie microcytaire.' },
+  ferritine:      { organe:'🩸 Réserves en fer', def:'Protéine de stockage du fer dans les cellules. Reflète les réserves totales en fer de l\'organisme.', haut:'Réserves élevées : peut signaler une inflammation, une hépatite, ou une hémochromatose.', bas:'Réserves épuisées — carence martiale, souvent précède l\'anémie.' },
+  vitamine_D:     { organe:'🦴 Os / Immunité', def:'Vitamine liposoluble synthétisée par la peau sous l\'effet du soleil. Essentielle pour les os, l\'immunité et la régulation hormonale.', haut:'Rare — intoxication possible au-delà de 375 nmol/L.', bas:'Carence très fréquente. Fatigue, fragilité osseuse, baisse d\'immunité.' },
+  TSH:            { organe:'🦋 Thyroïde', def:'Hormone thyréostimulante — produite par l\'hypophyse pour stimuler la thyroïde. Reflète indirectement l\'activité thyroïdienne.', haut:'TSH élevée : thyroïde sous-active (hypothyroïdie) — fatigue, prise de poids, frilosité.', bas:'TSH basse : thyroïde suractive (hyperthyroïdie) — palpitations, amaigrissement, nervosité.' },
+};
+
 function renderSanteSection(panelId){
   const section = SANTE_SECTIONS[panelId]; if(!section) return;
   const el = document.getElementById(panelId+'_content'); if(!el) return;
@@ -1383,11 +1425,19 @@ function renderSanteSection(panelId){
   Object.entries(marqueurData).forEach(([key, data]) => {
     if(!data.values.some(v=>v!==null)) return;
     const label = MARQUEUR_LABELS[key] || key.replace(/_/g,' ');
+    const info = MARQUEUR_INFO[key];
     const u = unites[key] || '';
     const lastVal = [...data.values].reverse().find(v=>v!==null);
     let couleur = '#22c55e', statutLabel = 'Normal';
     if(data.refMin !== null && lastVal < data.refMin){ couleur='#38bdf8'; statutLabel='Bas'; }
     if(data.refMax !== null && lastVal > data.refMax){ couleur='#ef4444'; statutLabel='Élevé'; }
+
+    // Interprétation contextuelle
+    let interpHtml = '';
+    if(info && statutLabel !== 'Normal'){
+      const interp = statutLabel === 'Élevé' ? info.haut : info.bas;
+      if(interp) interpHtml = `<div style="font-size:10px;color:${couleur}99;margin-top:6px;font-style:italic;border-left:2px solid ${couleur}44;padding-left:8px">${interp}</div>`;
+    }
 
     // Delta vs bilan précédent
     let deltaHtml = '';
@@ -1412,7 +1462,7 @@ function renderSanteSection(panelId){
 
     html += `<div class="card" style="padding:14px 16px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <span style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px">${label}</span>
+        <span class="mq-label" style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px" ${info?`data-tooltip="${(info.organe||'')+'\n'+(info.def||'')}"`:''} >${label}</span>
         <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:${couleur}22;color:${couleur};font-family:'Space Mono',monospace">${statutLabel}</span>
       </div>
       <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:12px">
@@ -1422,6 +1472,7 @@ function renderSanteSection(panelId){
         <span style="font-size:10px;color:rgba(255,255,255,0.2);margin-left:auto">Réf : ${refStr} ${u}</span>
       </div>
       <div style="position:relative;height:120px"><canvas id="${canvasId}"></canvas></div>
+      ${interpHtml}
       ${data.note?`<div style="font-size:10px;color:rgba(249,115,22,0.6);margin-top:8px;font-style:italic">ℹ️ ${data.note}</div>`:''}
     </div>`;
   });
@@ -1546,8 +1597,10 @@ function renderSurveiller(){
       }
 
       const sectionLabel = Object.entries(SANTE_SECTIONS).find(([_,s])=>s.marqueurs.includes(key))?.[1]?.title || '';
+      const info = MARQUEUR_INFO[key];
+      const interp = info ? (statut==='haut' ? info.haut : info.bas) : null;
 
-      horsNorme.push({ key, label, v, u, couleur, statut, refStr, deltaHtml, sectionLabel, note: m.note||null });
+      horsNorme.push({ key, label, v, u, couleur, statut, refStr, deltaHtml, sectionLabel, note: m.note||null, info, interp });
     });
   });
 
@@ -1562,13 +1615,14 @@ function renderSurveiller(){
 
   let html = `<div style="font-size:11px;color:rgba(255,255,255,0.25);margin-bottom:16px">Bilan du ${date} — ${horsNorme.length} marqueur(s) hors norme</div>`;
   html += '<div style="display:flex;flex-direction:column;gap:10px">';
-  horsNorme.forEach(({key, label, v, u, couleur, statut, refStr, deltaHtml, sectionLabel, note}) => {
+  horsNorme.forEach(({key, label, v, u, couleur, statut, refStr, deltaHtml, sectionLabel, note, info, interp}) => {
     const badgeLabel = statut === 'haut' ? '↑ Élevé' : '↓ Bas';
+    const tooltip = info ? `${info.organe}\n${info.def}` : '';
     html += `<div class="card" style="padding:14px 18px;border-left:3px solid ${couleur}">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:140px">
           <div style="font-size:10px;color:rgba(255,255,255,0.25);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">${sectionLabel}</div>
-          <div style="font-size:13px;color:rgba(255,255,255,0.7)">${label}</div>
+          <div class="mq-label" style="font-size:13px;color:rgba(255,255,255,0.7)" ${tooltip?`data-tooltip="${tooltip}"`:''}>${label}</div>
         </div>
         <div style="display:flex;align-items:baseline;gap:6px">
           <span style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:${couleur}">${v}</span>
@@ -1578,7 +1632,8 @@ function renderSurveiller(){
         <span style="font-size:10px;padding:3px 10px;border-radius:10px;background:${couleur}22;color:${couleur};font-family:'Space Mono',monospace">${badgeLabel}</span>
         <span style="font-size:10px;color:rgba(255,255,255,0.2)">Réf : ${refStr} ${u}</span>
       </div>
-      ${note?`<div style="font-size:10px;color:rgba(249,115,22,0.5);margin-top:8px;font-style:italic">ℹ️ ${note}</div>`:''}
+      ${interp?`<div style="font-size:11px;color:${couleur}bb;margin-top:10px;border-left:2px solid ${couleur}44;padding-left:10px;font-style:italic">${interp}</div>`:''}
+      ${note?`<div style="font-size:10px;color:rgba(249,115,22,0.5);margin-top:6px;font-style:italic">ℹ️ ${note}</div>`:''}
     </div>`;
   });
   html += '</div>';
