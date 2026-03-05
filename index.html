@@ -1458,14 +1458,14 @@ function movingAvg(data, window){
 
 function renderCorrelations(){
   const sel = document.getElementById('corrMarqueur');
-  const metric = document.getElementById('corrMetric')?.value;
-  const smooth = parseInt(document.getElementById('corrSmooth')?.value || 30);
+  const metric = (document.getElementById('corrMetric')?document.getElementById('corrMetric').value:null);
+  const smooth = parseInt((document.getElementById('corrSmooth')?document.getElementById('corrSmooth').value:null) || 30);
   if(!sel || !bilans.length || !days.length) return;
 
   const key = sel.value;
   const u = getUnite(key);
   const label = MARQUEUR_LABELS[key] || key;
-  const testMode = document.getElementById('corrTestMode')?.checked;
+  const testMode = (document.getElementById('corrTestMode')?document.getElementById('corrTestMode').checked:false);
 
   // Dates virtuelles en mode test : bilan 1 → 2025-12-01, bilan 2 → aujourd'hui
   const today = new Date().toISOString().split('T')[0];
@@ -1477,19 +1477,19 @@ function renderCorrelations(){
 
   let rawSerie = [];
   if(metric === 'deficit'){
-    rawSerie = allDates.map(d => d.deficit ?? null);
+    rawSerie = allDates.map(d => d.deficit != null ? d.deficit : null);
   } else if(metric === 'calories'){
     rawSerie = allDates.map(d => d.calories || null);
   } else if(metric === 'poids'){
     // Interpoler les pesées sur les dates
     const peseeMap = {}; pesees.forEach(p=>{ peseeMap[p.date]=p.val; });
-    rawSerie = allDates.map(d => peseeMap[d.date] ?? null);
+    rawSerie = allDates.map(d => peseeMap[d.date] != null ? peseeMap[d.date] : null);
   } else if(metric === 'velo_distance'){
     const veloMap = {}; veloSessions.forEach(v=>{ if(!veloMap[v.date]) veloMap[v.date]=0; veloMap[v.date]+=v.distance; });
-    rawSerie = allDates.map(d => veloMap[d.date] ?? 0);
+    rawSerie = allDates.map(d => veloMap[d.date] != null ? veloMap[d.date] : 0);
   } else if(metric === 'velo_vitesse'){
     const veloMap = {}; veloSessions.forEach(v=>{ if(v.duree>0) veloMap[v.date]=(v.distance/(v.duree/60)); });
-    rawSerie = allDates.map(d => veloMap[d.date] ?? null);
+    rawSerie = allDates.map(d => veloMap[d.date] != null ? veloMap[d.date] : null);
   }
 
   const smoothSerie = movingAvg(rawSerie, smooth);
@@ -1506,7 +1506,7 @@ function renderCorrelations(){
 
   // Lignes verticales aux dates de bilan (via annotation plugin ou dataset nul)
   // On crée un dataset par bilan pour les points marqueurs sur l'axe secondaire
-  const metricLabel = document.getElementById('corrMetric')?.selectedOptions[0]?.text || metric;
+  const metricLabel = (document.getElementById('corrMetric')&&document.getElementById('corrMetric').selectedOptions[0]?document.getElementById('corrMetric').selectedOptions[0].text:null) || metric;
 
   // Détruire ancien chart
   if(charts['corr_main']){ charts['corr_main'].destroy(); delete charts['corr_main']; }
@@ -1574,7 +1574,7 @@ function renderCorrelations(){
           titleColor:'rgba(255,255,255,0.7)', bodyColor:'rgba(255,255,255,0.6)',
           callbacks: {
             label: ctx => {
-              if(ctx.dataset.yAxisID==='y1') return `${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(0)}`;
+              if(ctx.dataset.yAxisID==='y1') return `${ctx.dataset.label}: ${(ctx.parsed.y!=null?ctx.parsed.y.toFixed(0):null)}`;
               if(ctx.parsed.y!==null) return `${ctx.dataset.label}: ${ctx.parsed.y} ${u}`;
               return null;
             }
@@ -1611,7 +1611,7 @@ function renderCorrInsight(key, metric, bilanPoints, smoothSerie, allDates, smoo
   if(bilanPoints.length < 2){ el.textContent = 'Ajoute un 2ème bilan pour voir évoluer les tendances.'; return; }
 
   const label = MARQUEUR_LABELS[key] || key;
-  const metricLabel = document.getElementById('corrMetric')?.selectedOptions[0]?.text || metric;
+  const metricLabel = (document.getElementById('corrMetric')&&document.getElementById('corrMetric').selectedOptions[0]?document.getElementById('corrMetric').selectedOptions[0].text:null) || metric;
 
   // Calculer la moyenne de la métrique dans les N jours AVANT chaque bilan
   const window = smooth;
@@ -1654,30 +1654,29 @@ function renderCorrGrid(metric, smooth, allDates, rawSerie, smoothSerie){
     marqueurs[k].vals.push({date:b.date, val:m.valeur});
   })));
 
-  const twoBilans = Object.entries(marqueurs).filter(([,d])=>d.vals.length>=2);
+  const twoBilans = Object.entries(marqueurs).filter(function(e){return e[1].vals.length>=2;});
 
   // Calculer corrélation simple (direction cohérente ou non)
-  const metricLabel = document.getElementById('corrMetric')?.selectedOptions[0]?.text || metric;
+  const metricLabel = (document.getElementById('corrMetric')&&document.getElementById('corrMetric').selectedOptions[0]?document.getElementById('corrMetric').selectedOptions[0].text:null) || metric;
 
   let html = `<div style="grid-column:1/-1;font-size:11px;color:rgba(255,255,255,0.2);margin-bottom:4px">Évolution de tous les marqueurs entre les deux bilans — ${twoBilans.length} marqueurs comparables</div>`;
 
   // Trier : hors norme d'abord, puis défavorables, puis normaux
-  const sorted = twoBilans.sort(([ka,da],[kb,db])=>{
-    const lastA = da.vals[da.vals.length-1].val;
-    const lastB = db.vals[db.vals.length-1].val;
-    const badA = (da.refMax!==null&&lastA>da.refMax)||(da.refMin!==null&&lastA<da.refMin);
-    const badB = (db.refMax!==null&&lastB>db.refMax)||(db.refMin!==null&&lastB<db.refMin);
+  const sorted = twoBilans.sort(function(ea,eb){
+    var da=ea[1],db=eb[1];
+    var lastA=da.vals[da.vals.length-1].val, lastB=db.vals[db.vals.length-1].val;
+    var badA=(da.refMax!==null&&lastA>da.refMax)||(da.refMin!==null&&lastA<da.refMin);
+    var badB=(db.refMax!==null&&lastB>db.refMax)||(db.refMin!==null&&lastB<db.refMin);
     return (badB?1:0)-(badA?1:0);
   });
 
-  sorted.forEach(([key, data])=>{
+  sorted.forEach(function(entry){ var key=entry[0], data=entry[1];
     const label = MARQUEUR_LABELS[key]||key;
     const u = getUnite(key);
     const first = data.vals[0].val, last = data.vals[data.vals.length-1].val;
     const diff = last - first;
     const pct = ((diff/first)*100).toFixed(1);
     const sign = diff>0?'+':'';
-    const dir = MARQUEUR_DIR[key]||'neutral';
     const dc = deltaColor(key, diff, (data.refMax!==null&&last>data.refMax)?'Élevé':(data.refMin!==null&&last<data.refMin)?'Bas':'Normal');
     const statCol = (data.refMax!==null&&last>data.refMax)?'#ef4444':(data.refMin!==null&&last<data.refMin)?'#38bdf8':'#22c55e';
     const arrow = diff>0?'↑':diff<0?'↓':'→';
@@ -1698,6 +1697,7 @@ function renderCorrGrid(metric, smooth, allDates, rawSerie, smoothSerie){
 }
 
 /* ── CORRÉLATIONS ── */
+const UNITES_FALLBACK = {
   hematies:'T/L', hemoglobine:'g/L', hematocrite:'%', MCV:'fL', MCH:'pg', MCHC:'g/L',
   leucocytes:'G/L', neutrophiles_pct:'%', neutrophiles_abs:'G/L', eosinophiles_pct:'%',
   eosinophiles_abs:'G/L', basophiles_pct:'%', basophiles_abs:'G/L', lymphocytes_pct:'%',
@@ -1797,7 +1797,7 @@ function genPdfSante(){
       doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(...hexToRgb(c.text));
       doc.text(`• ${label}`, 18, y);
       doc.setTextColor(...hexToRgb(col)); doc.setFont('helvetica','bold');
-      doc.text(`${m.valeur} ${u}  (réf : ${m.refMin??''}${m.refMin!==null&&m.refMax!==null?' – ':''}${m.refMax??''} ${u})`, 75, y);
+      doc.text(`${m.valeur} ${u}  (réf : ${m.refMin!=null?m.refMin:''}${m.refMin!==null&&m.refMax!==null?' – ':''}${m.refMax!=null?m.refMax:''} ${u})`, 75, y);
       const info = MARQUEUR_INFO[key];
       if(info){ const interp = statut==='haut'?info.haut:info.bas; if(interp){ doc.setFont('helvetica','italic'); doc.setTextColor(...hexToRgb(c.muted)); doc.setFontSize(8); const lines = doc.splitTextToSize(interp, pageW-110); doc.text(lines, 18, y+4); y+=4*lines.length; } }
       y+=7;
@@ -2296,7 +2296,7 @@ function renderSurveiller(){
         }
       }
 
-      const sectionLabel = Object.entries(SANTE_SECTIONS).find(([_,s])=>s.marqueurs.includes(key))?.[1]?.title || '';
+      const sectionLabel = (function(){var r=Object.entries(SANTE_SECTIONS).find(function(e){return e[1].marqueurs.includes(key)});return r&&r[1]&&r[1].title?r[1].title:'';})();
       const info = MARQUEUR_INFO[key];
       const interp = info ? (statut==='haut' ? info.haut : info.bas) : null;
 
@@ -2376,7 +2376,7 @@ function importBilan(event){
 
 function exportBilans(){
   if(!bilans.length){ alert('Aucun bilan à exporter.'); return; }
-  const data = { patient: document.getElementById('pdfPatientNom')?.value || '', unites_reference: window._bilanUnites || {}, bilans };
+  const data = { patient: (document.getElementById('pdfPatientNom')?document.getElementById('pdfPatientNom').value:'') || '', unites_reference: window._bilanUnites || {}, bilans };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
