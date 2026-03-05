@@ -171,6 +171,7 @@
   <div class="sidebar-section">
     <div class="sidebar-section-label">Santé</div>
     <button class="sidebar-tab" onclick="showTab('tdee',this)">🔥 Besoin journalier</button>
+    <button class="sidebar-tab" onclick="showTab('bilans',this)">🩸 Bilans sanguins</button>
   </div>
 </nav>
 
@@ -468,6 +469,33 @@
     </div>
   </div>
 
+  <!-- BILANS SANGUINS -->
+  <div id="bilans" class="panel">
+    <div class="chart-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
+        <div>
+          <div class="chart-title" style="margin-bottom:4px">🩸 Bilans sanguins</div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.3)">Importez vos analyses de sang au format JSON harmonisé</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <label class="btn btn-secondary" style="cursor:pointer;font-size:11px;padding:6px 14px">
+            ⬆ Importer bilan JSON
+            <input type="file" accept=".json" onchange="importBilan(event)" style="display:none">
+          </label>
+          <button class="btn btn-secondary" onclick="exportBilans()" style="font-size:11px;padding:6px 14px">⬇ Exporter bilans</button>
+        </div>
+      </div>
+      <div id="bilansList"></div>
+    </div>
+    <div class="chart-card" id="bilanDetailCard" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="chart-title" style="margin-bottom:0" id="bilanDetailTitle">Détail du bilan</div>
+        <button class="period-btn" onclick="closeBilanDetail()">✕ Fermer</button>
+      </div>
+      <div id="bilanDetailContent"></div>
+    </div>
+  </div>
+
   <!-- VELO -->
   <div id="velo" class="panel">
     <div class="chart-card">
@@ -544,6 +572,7 @@ let activePeriod = 'mois_en_cours'; // 'tout', 'mois_en_cours', 'mois_precedent'
 let veloActivePeriod = 'tout';
 let deficitActivePeriod = 'tout';
 let nbProjChoice = 90;
+let bilans = [];
 let poidsAxisVisible = false;
 
 function getFilteredDays(){
@@ -649,7 +678,7 @@ const STORAGE_KEY = 'calorietrack_v1';
 function saveData(){
   const calcDateEl = document.getElementById('calcDate');
   const calcDateVal = (calcDateEl && calcDateEl.value) ? calcDateEl.value : (window._savedCalcDate || '');
-  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, activePeriod, calcDate: calcDateVal, poids: getPoids(), objectif: getObjectif() };
+  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, activePeriod, calcDate: calcDateVal, poids: getPoids(), objectif: getObjectif(), bilans };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     localStorage.setItem(STORAGE_KEY+'_calc', JSON.stringify({calcItems, calcDate: calcDateVal}));
@@ -670,6 +699,7 @@ function loadData(){
     if(data.calcItems && data.calcItems.length > 0) calcItems = data.calcItems;
     if(data.activePeriod) activePeriod = data.activePeriod;
     if(data.veloSessions) veloSessions = data.veloSessions;
+    if(data.bilans) bilans = data.bilans;
     if(data.calcDate) window._savedCalcDate = data.calcDate;
     // Backup: try dedicated calc storage
     try {
@@ -687,7 +717,7 @@ function loadData(){
 }
 
 function exportData(){
-  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, poids: getPoids(), objectif: getObjectif(), exportDate: new Date().toISOString() };
+  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, bilans, poids: getPoids(), objectif: getObjectif(), exportDate: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -711,6 +741,7 @@ function importData(event){
       if(data.refs) { refs = data.refs; refNextId = data.refNextId || 100; }
       if(data.calcItems) calcItems = data.calcItems;
       if(data.activePeriod) activePeriod = data.activePeriod;
+      if(data.bilans) bilans = data.bilans;
       if(data.poids) document.getElementById('poidsInput').value = data.poids;
       if(data.objectif) document.getElementById('objectifInput').value = data.objectif;
       saveData();
@@ -725,7 +756,7 @@ function refresh(){
   const s=computeStats();
   renderKPI(s); renderChartMain(s); renderChartDeficit(s); renderChartPoids(s);
   renderDeficitList(s); renderSaisieList(s); renderPoidsCards(s);
-  renderRefs(); renderCalcSelect(); renderCalcItems(); renderPeseeList(); renderVelo();
+  renderRefs(); renderCalcSelect(); renderCalcItems(); renderPeseeList(); renderVelo(); renderBilans();
   // Sync dashboard period buttons
   const periodMap={'mois_en_cours':0,'mois_precedent':1,'tout':2};
   document.querySelectorAll('.dash-period-btn').forEach(b=>b.classList.remove('active'));
@@ -1190,6 +1221,123 @@ function addVelo(){
   const next=new Date(date); next.setDate(next.getDate()+1);
   document.getElementById('veloDate').value=next.toISOString().split('T')[0];
   renderVelo(); saveData();
+}
+
+/* ── BILANS SANGUINS ── */
+function importBilan(event){
+  const file = event.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      const data = JSON.parse(e.target.result);
+      if(!data.bilans || !Array.isArray(data.bilans)){ alert('Fichier invalide : structure bilans[] attendue.'); return; }
+      let added = 0, skipped = 0;
+      data.bilans.forEach(b => {
+        if(!b.id || !b.date){ skipped++; return; }
+        const exists = bilans.findIndex(x => x.id === b.id);
+        if(exists >= 0){ bilans[exists] = b; skipped++; }
+        else { bilans.push(b); added++; }
+      });
+      // Conserver les unités de référence si présentes
+      if(data.unites_reference && !window._bilanUnites) window._bilanUnites = data.unites_reference;
+      bilans.sort((a,b) => a.date.localeCompare(b.date));
+      renderBilans(); saveData();
+      alert(added + ' bilan(s) importé(s)' + (skipped ? ', ' + skipped + ' mis à jour/ignorés.' : '.'));
+    } catch(err){ alert('Erreur de lecture du fichier JSON.'); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function exportBilans(){
+  if(!bilans.length){ alert('Aucun bilan à exporter.'); return; }
+  const data = { patient: 'AUGE Basile', unites_reference: window._bilanUnites || {}, bilans };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'bilans_sanguins_' + new Date().toLocaleDateString('fr-FR').replace(/\//g,'-') + '.json';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function deleteBilan(id){
+  if(!confirm('Supprimer ce bilan ?')) return;
+  bilans = bilans.filter(b => b.id !== id);
+  renderBilans(); closeBilanDetail(); saveData();
+}
+
+function closeBilanDetail(){
+  document.getElementById('bilanDetailCard').style.display = 'none';
+}
+
+function showBilanDetail(id){
+  const b = bilans.find(x => x.id === id); if(!b) return;
+  const unites = window._bilanUnites || {};
+  const date = new Date(b.date).toLocaleDateString('fr-FR', {day:'2-digit', month:'long', year:'numeric'});
+  document.getElementById('bilanDetailTitle').textContent = 'Bilan du ' + date + ' — ' + b.laboratoire;
+
+  let html = '';
+  Object.entries(b.marqueurs).forEach(([categorie, marqueurs]) => {
+    const labels = {
+      hematologie:'🔴 Hématologie', biochimie:'🧪 Biochimie', bilan_lipidique:'💛 Bilan lipidique',
+      vitamines:'☀️ Vitamines', bilan_martial:'⚙️ Bilan martial', hormones:'🔬 Hormones'
+    };
+    html += `<div style="margin-bottom:20px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.3);margin-bottom:10px">${labels[categorie]||categorie}</div><div style="display:flex;flex-direction:column;gap:6px">`;
+    Object.entries(marqueurs).forEach(([key, m]) => {
+      const u = unites[key] || '';
+      const v = m.valeur;
+      let statut = 'normal', couleur = '#22c55e';
+      if(m.refMin !== null && v < m.refMin){ statut = 'bas'; couleur = '#38bdf8'; }
+      if(m.refMax !== null && v > m.refMax){ statut = 'haut'; couleur = '#ef4444'; }
+      const refStr = (m.refMin !== null ? m.refMin : '') + (m.refMin !== null && m.refMax !== null ? ' – ' : '') + (m.refMax !== null ? m.refMax : (m.refMin !== null ? '' : '—'));
+      const pct = (m.refMin !== null && m.refMax !== null) ? Math.max(0, Math.min(100, ((v - m.refMin) / (m.refMax - m.refMin)) * 100)) : null;
+      const barHtml = pct !== null ? `<div style="flex:1;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;position:relative;margin:0 12px"><div style="position:absolute;left:0;width:${pct}%;height:100%;background:${couleur};border-radius:2px;transition:width .3s"></div></div>` : '<div style="flex:1"></div>';
+      html += `<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:rgba(255,255,255,0.02);border-radius:8px;border-left:3px solid ${couleur}">
+        <span style="min-width:160px;font-size:12px;color:rgba(255,255,255,0.6)">${key.replace(/_/g,' ')}</span>
+        <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:${couleur};min-width:70px">${v} <span style="font-size:10px;opacity:.6">${u}</span></span>
+        ${barHtml}
+        <span style="font-size:11px;color:rgba(255,255,255,0.25);min-width:80px;text-align:right">${refStr} ${u}</span>
+        ${m.note ? `<span title="${m.note}" style="font-size:11px;cursor:help">ℹ️</span>` : ''}
+      </div>`;
+    });
+    html += '</div></div>';
+  });
+
+  document.getElementById('bilanDetailContent').innerHTML = html;
+  document.getElementById('bilanDetailCard').style.display = 'block';
+  document.getElementById('bilanDetailCard').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function renderBilans(){
+  const el = document.getElementById('bilansList'); if(!el) return;
+  if(!bilans.length){
+    el.innerHTML = '<p class="empty-msg">Aucun bilan importé. Utilisez le bouton "Importer bilan JSON" ci-dessus.</p>';
+    return;
+  }
+  el.innerHTML = bilans.slice().reverse().map(b => {
+    const date = new Date(b.date).toLocaleDateString('fr-FR', {day:'2-digit', month:'long', year:'numeric'});
+    // Compter les marqueurs hors norme
+    let haut = 0, bas = 0, total = 0;
+    Object.values(b.marqueurs).forEach(cat => {
+      Object.values(cat).forEach(m => {
+        total++;
+        if(m.refMax !== null && m.valeur > m.refMax) haut++;
+        else if(m.refMin !== null && m.valeur < m.refMin) bas++;
+      });
+    });
+    const ok = total - haut - bas;
+    return `<div class="day-row" style="cursor:pointer;padding:14px 16px" onclick="showBilanDetail('${b.id}')">
+      <div style="display:flex;flex-direction:column;gap:3px;flex:1">
+        <span style="font-family:'Space Mono',monospace;font-size:13px;color:#fff">${date}</span>
+        <span style="font-size:11px;color:rgba(255,255,255,0.3)">${b.laboratoire}</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        ${haut ? `<span style="font-size:11px;color:#ef4444;font-family:monospace">↑ ${haut} haut</span>` : ''}
+        ${bas ? `<span style="font-size:11px;color:#38bdf8;font-family:monospace">↓ ${bas} bas</span>` : ''}
+        <span style="font-size:11px;color:#22c55e;font-family:monospace">✓ ${ok}/${total}</span>
+        <button class="day-del" onclick="event.stopPropagation();deleteBilan('${b.id}')">×</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function deleteVelo(i){
