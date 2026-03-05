@@ -178,6 +178,11 @@
   </div>
 
   <div class="sidebar-section">
+    <div class="sidebar-section-label">Analyse</div>
+    <button class="sidebar-tab" onclick="showTab('correlations',this)">🔗 Corrélations</button>
+  </div>
+
+  <div class="sidebar-section">
     <div class="sidebar-section-label">Santé</div>
     <button class="sidebar-tab" onclick="showTab('sante_surveiller',this)">⚠️ À surveiller</button>
     <button class="sidebar-tab" onclick="showTab('tdee',this)">🔥 Besoin journalier</button>
@@ -483,6 +488,50 @@
         La formule de Mifflin-St Jeor est considérée comme la plus précise pour estimer le métabolisme de base (MB). Le TDEE = MB × coefficient d'activité. Ces valeurs sont des estimations — la réalité peut varier selon la génétique, la masse musculaire et d'autres facteurs.
       </p>
     </div>
+  </div>
+
+  <!-- CORRÉLATIONS -->
+  <div id="correlations" class="panel">
+    <div class="chart-card" style="margin-bottom:20px">
+      <div class="chart-title" style="margin-bottom:4px">🔗 Corrélations croisées</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.25);margin-bottom:16px">Superposition de tes données quotidiennes avec l'évolution des marqueurs sanguins. Les lignes verticales marquent les dates de bilan.</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <div class="control-group" style="margin:0">
+          <label style="font-size:11px">Marqueur sanguin</label>
+          <select id="corrMarqueur" onchange="renderCorrelations()" style="background:#0e0e1a;border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:8px;padding:6px 10px;font-size:12px;font-family:inherit"></select>
+        </div>
+        <div class="control-group" style="margin:0">
+          <label style="font-size:11px">Données quotidiennes</label>
+          <select id="corrMetric" onchange="renderCorrelations()" style="background:#0e0e1a;border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:8px;padding:6px 10px;font-size:12px;font-family:inherit">
+            <option value="deficit">Déficit calorique (kcal/j)</option>
+            <option value="calories">Apport calorique (kcal/j)</option>
+            <option value="poids">Poids (kg)</option>
+            <option value="velo_distance">Distance vélo (km)</option>
+            <option value="velo_vitesse">Vitesse vélo (km/h)</option>
+          </select>
+        </div>
+        <div class="control-group" style="margin:0">
+          <label style="font-size:11px">Fenêtre de lissage</label>
+          <select id="corrSmooth" onchange="renderCorrelations()" style="background:#0e0e1a;border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:8px;padding:6px 10px;font-size:12px;font-family:inherit">
+            <option value="7">7 jours</option>
+            <option value="30" selected>30 jours</option>
+            <option value="60">60 jours</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,0.35);cursor:pointer">
+            <input type="checkbox" id="corrTestMode" onchange="renderCorrelations()">
+            Mode test — redater les bilans
+          </label>
+          <span style="font-size:10px;color:rgba(249,115,22,0.5)">(bilan 1 → 01/12/25, bilan 2 → aujourd'hui)</span>
+        </div>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-bottom:20px">
+      <div style="position:relative;height:280px"><canvas id="corrChart"></canvas></div>
+      <div id="corrInsight" style="margin-top:14px;font-size:12px;color:rgba(255,255,255,0.4);font-style:italic;border-left:2px solid rgba(249,115,22,0.4);padding-left:12px"></div>
+    </div>
+    <div id="corrGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px"></div>
   </div>
 
   <!-- DOCUMENTS -->
@@ -921,6 +970,7 @@ function refresh(){
   renderKPI(s); renderChartMain(s); renderChartDeficit(s); renderChartPoids(s);
   renderDeficitList(s); renderSaisieList(s); renderPoidsCards(s);
   renderRefs(); renderCalcSelect(); renderCalcItems(); renderPeseeList(); renderVelo(); renderBilans(); renderAllSanteSections(); renderDocuments();
+  initCorrMarqueur();
   // Sync dashboard period buttons
   const periodMap={'mois_en_cours':0,'mois_precedent':1,'tout':2};
   document.querySelectorAll('.dash-period-btn').forEach(b=>b.classList.remove('active'));
@@ -1387,7 +1437,267 @@ function addVelo(){
   renderVelo(); saveData();
 }
 
-const UNITES_FALLBACK = {
+/* ── CORRÉLATIONS ── */
+function initCorrMarqueur(){
+  const sel = document.getElementById('corrMarqueur'); if(!sel) return;
+  if(!bilans.length){ sel.innerHTML='<option>Aucun bilan</option>'; return; }
+  const marqueurs = {};
+  bilans.forEach(b => Object.values(b.marqueurs).forEach(cat => Object.keys(cat).forEach(k => { marqueurs[k]=true; })));
+  // Priorité aux marqueurs pertinents
+  const priorite = ['HDL','LDL','cholesterol_total','triglycerides','ratio_CHOL_HDL','vitamine_D','ferritine','CRP','glucose','HbA1c','eGFR_CKD_EPI'];
+  const sorted = [...priorite.filter(k=>marqueurs[k]), ...Object.keys(marqueurs).filter(k=>!priorite.includes(k))];
+  sel.innerHTML = sorted.map(k=>`<option value="${k}">${MARQUEUR_LABELS[k]||k}</option>`).join('');
+}
+
+function movingAvg(data, window){
+  return data.map((d,i)=>{
+    const slice = data.slice(Math.max(0,i-window+1), i+1).filter(v=>v!==null);
+    return slice.length ? slice.reduce((a,b)=>a+b,0)/slice.length : null;
+  });
+}
+
+function renderCorrelations(){
+  const sel = document.getElementById('corrMarqueur');
+  const metric = document.getElementById('corrMetric')?.value;
+  const smooth = parseInt(document.getElementById('corrSmooth')?.value || 30);
+  if(!sel || !bilans.length || !days.length) return;
+
+  const key = sel.value;
+  const u = getUnite(key);
+  const label = MARQUEUR_LABELS[key] || key;
+  const testMode = document.getElementById('corrTestMode')?.checked;
+
+  // Dates virtuelles en mode test : bilan 1 → 2025-12-01, bilan 2 → aujourd'hui
+  const today = new Date().toISOString().split('T')[0];
+  const virtualDates = ['2025-12-01', today];
+
+  // Construire série temporelle quotidienne
+  const allDates = [...days].sort((a,b)=>a.date.localeCompare(b.date));
+  const dateLabels = allDates.map(d => new Date(d.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit'}));
+
+  let rawSerie = [];
+  if(metric === 'deficit'){
+    rawSerie = allDates.map(d => d.deficit ?? null);
+  } else if(metric === 'calories'){
+    rawSerie = allDates.map(d => d.calories || null);
+  } else if(metric === 'poids'){
+    // Interpoler les pesées sur les dates
+    const peseeMap = {}; pesees.forEach(p=>{ peseeMap[p.date]=p.val; });
+    rawSerie = allDates.map(d => peseeMap[d.date] ?? null);
+  } else if(metric === 'velo_distance'){
+    const veloMap = {}; veloSessions.forEach(v=>{ if(!veloMap[v.date]) veloMap[v.date]=0; veloMap[v.date]+=v.distance; });
+    rawSerie = allDates.map(d => veloMap[d.date] ?? 0);
+  } else if(metric === 'velo_vitesse'){
+    const veloMap = {}; veloSessions.forEach(v=>{ if(v.duree>0) veloMap[v.date]=(v.distance/(v.duree/60)); });
+    rawSerie = allDates.map(d => veloMap[d.date] ?? null);
+  }
+
+  const smoothSerie = movingAvg(rawSerie, smooth);
+
+  // Valeurs du marqueur aux dates de bilan
+  const bilanPoints = bilans.map((b, i) => {
+    let val = null;
+    Object.values(b.marqueurs).forEach(cat => { if(cat[key]) val = cat[key].valeur; });
+    const refMin = Object.values(b.marqueurs).reduce((acc,cat)=>cat[key]?cat[key].refMin:acc, null);
+    const refMax = Object.values(b.marqueurs).reduce((acc,cat)=>cat[key]?cat[key].refMax:acc, null);
+    const date = testMode ? (virtualDates[i] || b.date) : b.date;
+    return { date, val, refMin, refMax, labo: b.laboratoire };
+  }).filter(p=>p.val!==null);
+
+  // Lignes verticales aux dates de bilan (via annotation plugin ou dataset nul)
+  // On crée un dataset par bilan pour les points marqueurs sur l'axe secondaire
+  const metricLabel = document.getElementById('corrMetric')?.selectedOptions[0]?.text || metric;
+
+  // Détruire ancien chart
+  if(charts['corr_main']){ charts['corr_main'].destroy(); delete charts['corr_main']; }
+
+  const cvs = document.getElementById('corrChart'); if(!cvs) return;
+
+  // Préparer les datasets de marqueur sanguin (un point par bilan, sur axe Y droit)
+  const bilanDatesIdx = bilanPoints.map(p => allDates.findIndex(d=>d.date===p.date));
+  const bilanLabelsX = bilanPoints.map(p => new Date(p.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit'}));
+
+  // Couleur selon statut
+  const bilanColors = bilanPoints.map(p => {
+    if(p.refMax!==null&&p.val>p.refMax) return '#ef4444';
+    if(p.refMin!==null&&p.val<p.refMin) return '#38bdf8';
+    return '#22c55e';
+  });
+
+  // Dataset lignes verticales : on superpose des données null partout sauf à la date du bilan
+  const vertDatasets = bilanPoints.map((p,i)=>{
+    const arr = allDates.map(()=>null);
+    const idx = allDates.findIndex(d=>d.date===p.date);
+    // On ne peut pas faire vrai vertical avec Chart.js sans plugin — on place juste un gros point
+    return {
+      label: `Bilan ${new Date(p.date).toLocaleDateString('fr-FR',{month:'short',year:'2-digit'})}`,
+      data: allDates.map((d,i2)=> i2===idx ? p.val : null),
+      yAxisID: 'y2',
+      borderColor: bilanColors[i],
+      backgroundColor: bilanColors[i],
+      pointRadius: allDates.map((_,i2)=>i2===idx?8:0),
+      pointStyle: 'circle',
+      borderWidth: 2,
+      spanGaps: false,
+      showLine: false,
+      type: 'scatter',
+    };
+  });
+
+  charts['corr_main'] = new Chart(cvs.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: dateLabels,
+      datasets: [
+        {
+          label: metricLabel,
+          data: smoothSerie,
+          yAxisID: 'y1',
+          borderColor: 'rgba(249,115,22,0.8)',
+          backgroundColor: 'rgba(249,115,22,0.06)',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: metric==='deficit',
+          tension: 0.3,
+          spanGaps: true,
+        },
+        ...vertDatasets
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: { display:true, labels:{ color:'rgba(255,255,255,0.4)', font:{size:10}, boxWidth:12 } },
+        tooltip: {
+          backgroundColor:'rgba(10,10,20,0.95)', borderColor:'rgba(249,115,22,0.3)', borderWidth:1,
+          titleColor:'rgba(255,255,255,0.7)', bodyColor:'rgba(255,255,255,0.6)',
+          callbacks: {
+            label: ctx => {
+              if(ctx.dataset.yAxisID==='y1') return `${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(0)}`;
+              if(ctx.parsed.y!==null) return `${ctx.dataset.label}: ${ctx.parsed.y} ${u}`;
+              return null;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid:{color:'rgba(255,255,255,0.03)'}, ticks:{color:'rgba(255,255,255,0.25)',font:{size:9},maxTicksLimit:12} },
+        y1: {
+          type:'linear', position:'left',
+          grid:{color:'rgba(255,255,255,0.04)'},
+          ticks:{color:'rgba(249,115,22,0.6)',font:{size:9}},
+          title:{display:true, text:metricLabel, color:'rgba(249,115,22,0.5)', font:{size:9}}
+        },
+        y2: {
+          type:'linear', position:'right',
+          grid:{drawOnChartArea:false},
+          ticks:{color:'rgba(255,255,255,0.35)',font:{size:9}},
+          title:{display:true, text:`${label} (${u})`, color:'rgba(255,255,255,0.35)', font:{size:9}}
+        }
+      }
+    }
+  });
+
+  // Insight automatique
+  renderCorrInsight(key, metric, bilanPoints, smoothSerie, allDates, smooth);
+
+  // Mini-cards de toutes les corrélations possibles
+  renderCorrGrid(metric, smooth, allDates, rawSerie, smoothSerie);
+}
+
+function renderCorrInsight(key, metric, bilanPoints, smoothSerie, allDates, smooth){
+  const el = document.getElementById('corrInsight'); if(!el) return;
+  if(bilanPoints.length < 2){ el.textContent = 'Ajoute un 2ème bilan pour voir évoluer les tendances.'; return; }
+
+  const label = MARQUEUR_LABELS[key] || key;
+  const metricLabel = document.getElementById('corrMetric')?.selectedOptions[0]?.text || metric;
+
+  // Calculer la moyenne de la métrique dans les N jours AVANT chaque bilan
+  const window = smooth;
+  const bilanAvgs = bilanPoints.map(p => {
+    const idx = allDates.findIndex(d=>d.date===p.date);
+    const slice = smoothSerie.slice(Math.max(0,idx-window), idx).filter(v=>v!==null);
+    return slice.length ? slice.reduce((a,b)=>a+b,0)/slice.length : null;
+  });
+
+  const marqDelta = bilanPoints[bilanPoints.length-1].val - bilanPoints[0].val;
+  const metricDelta = bilanAvgs[bilanAvgs.length-1] !== null && bilanAvgs[0] !== null ? bilanAvgs[bilanAvgs.length-1] - bilanAvgs[0] : null;
+
+  const marqDir = MARQUEUR_DIR[key] || 'neutral';
+  const marqTrend = marqDelta > 0 ? '↑' : marqDelta < 0 ? '↓' : '→';
+  const marqGood = (marqDir==='low'&&marqDelta<0)||(marqDir==='high'&&marqDelta>0)||(marqDir==='neutral');
+
+  let insight = `${label} : ${marqTrend} ${marqDelta > 0 ? '+' : ''}${marqDelta.toFixed(2)} entre les deux bilans`;
+  if(metricDelta !== null){
+    const metricTrend = metricDelta > 0 ? '↑' : '↓';
+    insight += `. Moyenne "${metricLabel}" ${metricTrend} ${metricDelta > 0 ? '+' : ''}${metricDelta.toFixed(0)} dans les ${window}j précédant chaque bilan.`;
+    // Cohérence direction
+    const coherent = (metric==='deficit'&&marqDir==='low'&&marqDelta<0&&metricDelta>0)
+      || (metric==='velo_distance'&&marqDir==='high'&&marqDelta>0&&metricDelta>0)
+      || (metric==='velo_distance'&&(key==='triglycerides'||key==='cholesterol_total')&&marqDelta<0&&metricDelta>0);
+    if(coherent) insight += ' — tendance cohérente avec la littérature.';
+  }
+  if(!marqGood) insight += ` ⚠️ Évolution défavorable sur ce marqueur.`;
+
+  el.textContent = insight;
+}
+
+function renderCorrGrid(metric, smooth, allDates, rawSerie, smoothSerie){
+  const el = document.getElementById('corrGrid'); if(!el) return;
+  if(!bilans.length || bilans.length < 2){ el.innerHTML=''; return; }
+
+  // Afficher mini-cards pour tous les marqueurs présents dans les deux bilans
+  const marqueurs = {};
+  bilans.forEach(b => Object.values(b.marqueurs).forEach(cat => Object.entries(cat).forEach(([k,m])=>{
+    if(!marqueurs[k]) marqueurs[k]={vals:[], refMin:m.refMin, refMax:m.refMax};
+    marqueurs[k].vals.push({date:b.date, val:m.valeur});
+  })));
+
+  const twoBilans = Object.entries(marqueurs).filter(([,d])=>d.vals.length>=2);
+
+  // Calculer corrélation simple (direction cohérente ou non)
+  const metricLabel = document.getElementById('corrMetric')?.selectedOptions[0]?.text || metric;
+
+  let html = `<div style="grid-column:1/-1;font-size:11px;color:rgba(255,255,255,0.2);margin-bottom:4px">Évolution de tous les marqueurs entre les deux bilans — ${twoBilans.length} marqueurs comparables</div>`;
+
+  // Trier : hors norme d'abord, puis défavorables, puis normaux
+  const sorted = twoBilans.sort(([ka,da],[kb,db])=>{
+    const lastA = da.vals[da.vals.length-1].val;
+    const lastB = db.vals[db.vals.length-1].val;
+    const badA = (da.refMax!==null&&lastA>da.refMax)||(da.refMin!==null&&lastA<da.refMin);
+    const badB = (db.refMax!==null&&lastB>db.refMax)||(db.refMin!==null&&lastB<db.refMin);
+    return (badB?1:0)-(badA?1:0);
+  });
+
+  sorted.forEach(([key, data])=>{
+    const label = MARQUEUR_LABELS[key]||key;
+    const u = getUnite(key);
+    const first = data.vals[0].val, last = data.vals[data.vals.length-1].val;
+    const diff = last - first;
+    const pct = ((diff/first)*100).toFixed(1);
+    const sign = diff>0?'+':'';
+    const dir = MARQUEUR_DIR[key]||'neutral';
+    const dc = deltaColor(key, diff, (data.refMax!==null&&last>data.refMax)?'Élevé':(data.refMin!==null&&last<data.refMin)?'Bas':'Normal');
+    const statCol = (data.refMax!==null&&last>data.refMax)?'#ef4444':(data.refMin!==null&&last<data.refMin)?'#38bdf8':'#22c55e';
+    const arrow = diff>0?'↑':diff<0?'↓':'→';
+
+    html += `<div class="card" style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">${label}</div>
+        <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:${statCol}">${last} <span style="font-size:10px;font-weight:normal;color:rgba(255,255,255,0.3)">${u}</span></div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:'Space Mono',monospace;font-size:13px;color:${dc}">${arrow} ${sign}${diff.toFixed(2)}</div>
+        <div style="font-size:10px;color:${dc};opacity:0.8">${sign}${pct}%</div>
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = html;
+}
+
+/* ── CORRÉLATIONS ── */
   hematies:'T/L', hemoglobine:'g/L', hematocrite:'%', MCV:'fL', MCH:'pg', MCHC:'g/L',
   leucocytes:'G/L', neutrophiles_pct:'%', neutrophiles_abs:'G/L', eosinophiles_pct:'%',
   eosinophiles_abs:'G/L', basophiles_pct:'%', basophiles_abs:'G/L', lymphocytes_pct:'%',
@@ -2261,6 +2571,7 @@ function showTab(id,btn){
   if(id==='calculateur') autoFillCalcDate();
   if(id in SANTE_SECTIONS) renderSanteSection(id);
   if(id==='documents') renderDocuments();
+  if(id==='correlations'){ initCorrMarqueur(); renderCorrelations(); }
   if(id==='sante_surveiller') renderSurveiller();
   if(id==='tdee'){
     const lastPesee = pesees.length ? pesees[pesees.length-1].val : getPoids();
