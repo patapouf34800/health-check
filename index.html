@@ -3135,7 +3135,7 @@ function renderNutri(){
 }
 
 function getNutriCibles(){
-  const poids = parseFloat(document.getElementById('poidsInput').value) || 80;
+  const poids = pesees.length ? pesees[pesees.length-1].val : (parseFloat(document.getElementById('poidsInput').value) || 80);
   const kcal  = getObjectif();
   // Protéines : fourchette 1.2–1.6g/kg (recommandation déficit calorique, consensus nutritionnel)
   const protMin = Math.round(poids * 1.2);
