@@ -1217,7 +1217,14 @@ function loadData(){
 }
 
 function exportData(){
-  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, activePeriod, bilans, bilanUnites: window._bilanUnites||{}, poids: getPoids(), objectif: getObjectif(), tensions, exportDate: new Date().toISOString() };
+  const tdeeSexeEl = document.getElementById('tdeeSexe');
+  const tdeeParams = {
+    sexe: tdeeSexeEl ? tdeeSexeEl.value : 'homme',
+    age: parseInt(document.getElementById('tdeeAge').value)||30,
+    taille: parseInt(document.getElementById('tdeeTaille').value)||175,
+    activite: parseFloat(document.getElementById('tdeeActivite').value)||1.2
+  };
+  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, activePeriod, bilans, bilanUnites: window._bilanUnites||{}, poids: getPoids(), objectif: getObjectif(), tensions, tdeeParams, exportDate: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
