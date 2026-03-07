@@ -970,18 +970,20 @@ function renderTension(){
     // Zones en background via annotation plugin indisponible — on utilise des datasets fill
     // Bandes colorées : datasets empilés fill between
     const datasets = [
-      // Bandes de fond (ordre : du bas vers le haut)
-      { label:'_opt_base', data: tensions.map(function(){ return 60; }), fill:false, borderWidth:0, pointRadius:0, yAxisID:'y' },
-      { label:'Optimale (<120/80)', data: tensions.map(function(){ return 20; }), fill:'-1', backgroundColor:'rgba(34,197,94,0.07)', borderWidth:0, pointRadius:0, yAxisID:'y' },
-      { label:'Normale (120–129/80–84)', data: tensions.map(function(){ return 10; }), fill:'-1', backgroundColor:'rgba(163,230,53,0.07)', borderWidth:0, pointRadius:0, yAxisID:'y' },
-      { label:'Normale haute (130–139/85–89)', data: tensions.map(function(){ return 10; }), fill:'-1', backgroundColor:'rgba(234,179,8,0.06)', borderWidth:0, pointRadius:0, yAxisID:'y' },
-      { label:'Hypertension G1 (140–159/90–99)', data: tensions.map(function(){ return 20; }), fill:'-1', backgroundColor:'rgba(249,115,22,0.07)', borderWidth:0, pointRadius:0, yAxisID:'y' },
-      { label:'Hypertension G2 (≥160/≥100)', data: tensions.map(function(){ return 40; }), fill:'-1', backgroundColor:'rgba(239,68,68,0.07)', borderWidth:0, pointRadius:0, yAxisID:'y' },
+      // Lignes de référence horizontales (pas dans tooltip ni légende)
+      { label:'_ref_sys_opt',  data: tensions.map(function(){ return 120; }), borderColor:'rgba(34,197,94,0.25)',  borderWidth:1, borderDash:[4,4], pointRadius:0, fill:false, yAxisID:'y' },
+      { label:'_ref_sys_nor',  data: tensions.map(function(){ return 130; }), borderColor:'rgba(234,179,8,0.2)',   borderWidth:1, borderDash:[4,4], pointRadius:0, fill:false, yAxisID:'y' },
+      { label:'_ref_sys_haut', data: tensions.map(function(){ return 140; }), borderColor:'rgba(249,115,22,0.25)', borderWidth:1, borderDash:[4,4], pointRadius:0, fill:false, yAxisID:'y' },
+      { label:'_ref_sys_h1',   data: tensions.map(function(){ return 160; }), borderColor:'rgba(239,68,68,0.3)',   borderWidth:1, borderDash:[4,4], pointRadius:0, fill:false, yAxisID:'y' },
+      { label:'_ref_dia_opt',  data: tensions.map(function(){ return 80; }),  borderColor:'rgba(34,197,94,0.15)',  borderWidth:1, borderDash:[2,4], pointRadius:0, fill:false, yAxisID:'y' },
+      { label:'_ref_dia_nor',  data: tensions.map(function(){ return 85; }),  borderColor:'rgba(234,179,8,0.12)',  borderWidth:1, borderDash:[2,4], pointRadius:0, fill:false, yAxisID:'y' },
+      { label:'_ref_dia_haut', data: tensions.map(function(){ return 90; }),  borderColor:'rgba(249,115,22,0.15)', borderWidth:1, borderDash:[2,4], pointRadius:0, fill:false, yAxisID:'y' },
+      { label:'_ref_dia_h1',   data: tensions.map(function(){ return 100; }), borderColor:'rgba(239,68,68,0.2)',   borderWidth:1, borderDash:[2,4], pointRadius:0, fill:false, yAxisID:'y' },
       // Lignes données
-      { label:'Systolique', data: sysVals, borderColor:'rgba(239,68,68,0.85)', backgroundColor:'rgba(239,68,68,0.15)', pointRadius:4, pointHoverRadius:6, borderWidth:2, tension:0.3, fill:false, yAxisID:'y' },
-      { label:'Diastolique', data: diaVals, borderColor:'rgba(56,189,248,0.85)', backgroundColor:'rgba(56,189,248,0.15)', pointRadius:4, pointHoverRadius:6, borderWidth:2, tension:0.3, fill:false, yAxisID:'y' },
+      { label:'Systolique', data: sysVals, borderColor:'rgba(239,68,68,0.9)', backgroundColor:'rgba(239,68,68,0.15)', pointRadius:4, pointHoverRadius:6, borderWidth:2, tension:0.3, fill:false, yAxisID:'y' },
+      { label:'Diastolique', data: diaVals, borderColor:'rgba(56,189,248,0.9)', backgroundColor:'rgba(56,189,248,0.15)', pointRadius:4, pointHoverRadius:6, borderWidth:2, tension:0.3, fill:false, yAxisID:'y' },
     ];
-    if(hasPouls) datasets.push({ label:'Pouls', data: poulsVals, borderColor:'rgba(255,255,255,0.25)', pointRadius:3, pointHoverRadius:5, borderWidth:1.5, borderDash:[4,3], tension:0.3, fill:false, yAxisID:'y2' });
+    if(hasPouls) datasets.push({ label:'Pouls', data: poulsVals, borderColor:'rgba(255,255,255,0.3)', pointRadius:3, pointHoverRadius:5, borderWidth:1.5, borderDash:[4,3], tension:0.3, fill:false, yAxisID:'y2' });
 
     charts['tension'] = new Chart(cvs.getContext('2d'), {
       type:'line',
@@ -994,7 +996,7 @@ function renderTension(){
             display:true,
             labels:{
               color:'rgba(255,255,255,0.3)', font:{size:10}, boxWidth:10,
-              filter: function(item){ return !item.text.startsWith('_') && (item.text==='Systolique'||item.text==='Diastolique'||item.text==='Pouls'||item.text.indexOf('(')>-1); }
+              filter: function(item){ return !item.text.startsWith('_'); }
             }
           },
           tooltip:{
