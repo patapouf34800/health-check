@@ -155,18 +155,22 @@
   </div>
 
   <div class="sidebar-section">
-    <div class="sidebar-section-label">Résumé</div>
+    <div class="sidebar-section-label">Tableau de bord</div>
     <button class="sidebar-tab active" onclick="showTab('dashboard',this)">📊 Dashboard</button>
     <button class="sidebar-tab" onclick="showTab('poids',this)">⚖️ Poids</button>
   </div>
 
   <div class="sidebar-section">
-    <div class="sidebar-section-label">Repas</div>
-    <button class="sidebar-tab" onclick="showTab('deficit',this)">📉 Déficit</button>
+    <div class="sidebar-section-label">Alimentation</div>
     <button class="sidebar-tab" onclick="showTab('saisie',this)">✏️ Saisie</button>
     <button class="sidebar-tab" onclick="showTab('calculateur',this)">🧮 Calculateur</button>
-    <button class="sidebar-tab" onclick="showTab('references',this)">📚 Références</button>
+    <button class="sidebar-tab" onclick="showTab('deficit',this)">📉 Déficit</button>
     <button class="sidebar-tab" onclick="showTab('nutriments',this)">🥗 Nutriments</button>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Aliments</div>
+    <button class="sidebar-tab" onclick="showTab('references',this)">📚 Références</button>
   </div>
 
   <div class="sidebar-section">
@@ -176,20 +180,9 @@
   </div>
 
   <div class="sidebar-section">
-    <div class="sidebar-section-label">Documents</div>
-    <button class="sidebar-tab" onclick="showTab('documents',this)">📄 Rapports PDF</button>
-  </div>
-
-  <div class="sidebar-section">
-    <div class="sidebar-section-label">Analyse</div>
-    <button class="sidebar-tab" onclick="showTab('correlations',this)">🔗 Corrélations</button>
-  </div>
-
-  <div class="sidebar-section">
     <div class="sidebar-section-label">Santé</div>
     <button class="sidebar-tab" onclick="showTab('sante_surveiller',this)">⚠️ À surveiller</button>
     <button class="sidebar-tab" onclick="showTab('tension',this)">🫀 Tension</button>
-    <button class="sidebar-tab" onclick="showTab('tdee',this)">🔥 Besoin journalier</button>
     <button class="sidebar-tab" onclick="showTab('bilans',this)">🩸 Bilans sanguins</button>
     <button class="sidebar-tab" onclick="showTab('sante_hemato',this)">🔴 Hématologie</button>
     <button class="sidebar-tab" onclick="showTab('sante_bio',this)">🧪 Biochimie</button>
@@ -197,6 +190,13 @@
     <button class="sidebar-tab" onclick="showTab('sante_martial',this)">⚙️ Martial</button>
     <button class="sidebar-tab" onclick="showTab('sante_vitamines',this)">☀️ Vitamines</button>
     <button class="sidebar-tab" onclick="showTab('sante_hormones',this)">🔬 Hormones</button>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Outils</div>
+    <button class="sidebar-tab" onclick="showTab('tdee',this)">🔥 Besoin journalier</button>
+    <button class="sidebar-tab" onclick="showTab('correlations',this)">🔗 Corrélations</button>
+    <button class="sidebar-tab" onclick="showTab('documents',this)">📄 Rapports PDF</button>
   </div>
 </nav>
 
