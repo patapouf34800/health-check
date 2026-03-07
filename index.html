@@ -3279,8 +3279,17 @@ function renderBilanHebdo(){
     function topCorrectors(macroKey, deficitG, maxKcalPerPortion){
       if(!CIQUAL || !CIQUAL.length) return [];
       var MAX_KCAL = maxKcalPerPortion || 300;
+      // Exclure les plats préparés et produits industriels (r=3)
+      // Exclure aussi les aliments "moyen" trop génériques et les alcools
+      var EXCLUDE = ['alcool','bière','vin ','whisky','liqueur','rhum','vodka','sirop de'];
       var scored = CIQUAL
-        .filter(function(a){ return a[macroKey] != null && a[macroKey] > 0 && a.k > 0; })
+        .filter(function(a){
+          if(a[macroKey] == null || a[macroKey] <= 0 || a.k <= 0) return false;
+          if((a.r || 0) >= 3) return false; // exclure plats préparés/industriels
+          var nl = a.n.toLowerCase();
+          if(EXCLUDE.some(function(e){ return nl.indexOf(e) !== -1; })) return false;
+          return true;
+        })
         .map(function(a){
           var score = a[macroKey] / a.k;
           var grams = Math.round((deficitG * 0.5) / (a[macroKey] / 100));
