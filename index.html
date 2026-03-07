@@ -1109,7 +1109,7 @@ function loadData(){
 }
 
 function exportData(){
-  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, bilans, bilanUnites: window._bilanUnites||{}, poids: getPoids(), objectif: getObjectif(), tensions, exportDate: new Date().toISOString() };
+  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, activePeriod, bilans, bilanUnites: window._bilanUnites||{}, poids: getPoids(), objectif: getObjectif(), tensions, exportDate: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1157,6 +1157,7 @@ function importData(event){
       pesees = data.pesees || [];
       veloSessions = data.veloSessions || [];
       bilans = data.bilans || [];
+      tensions = data.tensions || [];
       if(data.refs) { refs = data.refs; refNextId = data.refNextId || 100; }
       if(data.calcItems) calcItems = data.calcItems;
       if(data.activePeriod) activePeriod = data.activePeriod;
