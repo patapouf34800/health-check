@@ -394,7 +394,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
         <div class="chart-title" style="margin-bottom:0" id="saisieTitle">Données enregistrées</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-secondary" onclick="resetDemo()" style="font-size:11px;padding:6px 12px">↺ Données démo</button>
+        
           <button class="btn btn-secondary" onclick="clearAll()" style="border-color:rgba(239,68,68,0.3);color:#ef4444;background:rgba(239,68,68,0.08);font-size:11px;padding:6px 12px">🗑 Effacer tout</button>
         </div>
       </div>
@@ -764,9 +764,9 @@
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
         <div class="chart-title" style="margin-bottom:0">🥗 Macronutriments par jour</div>
         <div style="display:flex;gap:6px" id="nutriPeriodBtns">
-          <button class="btn btn-secondary active" onclick="setNutriPeriod('month',this)">Mois en cours</button>
-          <button class="btn btn-secondary" onclick="setNutriPeriod('prev',this)">Mois précédent</button>
-          <button class="btn btn-secondary" onclick="setNutriPeriod('all',this)">Tout</button>
+          <button class="period-btn" onclick="setNutriPeriod('month',this)">Mois en cours</button>
+          <button class="period-btn" onclick="setNutriPeriod('prev',this)">Mois précédent</button>
+          <button class="period-btn active" onclick="setNutriPeriod('all',this)">Tout</button>
         </div>
       </div>
       <canvas id="chartNutri" height="90"></canvas>
@@ -936,15 +936,6 @@ function defColor(def,alpha){
 function defClass(def){ return def===0?'yellow':def>0?'green':'red'; }
 function defSign(def){ return def===0?'±':def>0?'−':'+'; }
 function getObjectif(){ return parseInt(document.getElementById('objectifInput').value)||2200; }
-
-function genDemo(){
-  const obj=getObjectif(), result=[], today=new Date();
-  for(let i=29;i>=0;i--){
-    const d=new Date(today); d.setDate(today.getDate()-i);
-    result.push({ date:d.toISOString().split('T')[0], label:d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}), calories:Math.round(1600+Math.random()*900), objectif:obj });
-  }
-  return result;
-}
 
 function computeStats(){
   const obj=getObjectif(), poidsInit=getPoids();
@@ -3113,11 +3104,11 @@ function setDeficitPeriod(period, btn){
 }
 
 /* ── NUTRIMENTS ── */
-var _nutriPeriod = 'month';
+var _nutriPeriod = 'all';
 
 function setNutriPeriod(p, btn){
   _nutriPeriod = p;
-  document.querySelectorAll('#nutriPeriodBtns .btn').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('#nutriPeriodBtns .period-btn').forEach(function(b){ b.classList.remove('active'); });
   if(btn) btn.classList.add('active');
   renderNutri();
 }
@@ -3466,7 +3457,6 @@ function cancelEditDay(i){
 }
 
 function deleteDay(i){ days.splice(i,1); refresh(); saveData(); }
-function resetDemo(){ days=genDemo(); refresh(); saveData(); }
 function clearAll(){ if(confirm('Effacer toutes les données ?')){ days=[]; refresh(); saveData(); } }
 
 /* ── PESÉES ── */
@@ -3822,7 +3812,7 @@ function renderBilanHebdo(){
 
 const hasData = loadData();
 syncObjectifDynamique();
-if(!hasData) days = genDemo();
+if(!hasData) days = [];
 refresh();
 window.addEventListener('beforeunload', saveData);
 const _vd=document.getElementById('veloDate'); if(_vd) _vd.value=new Date().toISOString().split('T')[0];
