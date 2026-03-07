@@ -817,7 +817,7 @@
 
     <!-- Bloc conseil (toujours visible, se remplit progressivement) -->
     <div class="chart-card" id="bilanHebdoConseils">
-      <div class="chart-title" style="margin-bottom:12px">💡 Analyse & conseils</div>
+      <div class="chart-title" style="margin-bottom:12px">💡 Analyse & ajustements semaine suivante</div>
       <div id="bilanHebdoConseillsContent"></div>
     </div>
 
@@ -3267,41 +3267,134 @@ function renderBilanHebdo(){
     +'</tr></thead><tbody>'+tableRows+'</tbody></table></div>';
 
   // Conseils
+  // ── BLOC AJUSTEMENTS SEMAINE SUIVANTE ──────────────────────────────────────
   var conseils = '';
   if(n === 0){
-    conseils = '<p style="font-size:13px;color:rgba(255,255,255,0.3);font-style:italic">Aucune donnée macro pour cette semaine.</p>';
+    conseils = '<p style="font-size:13px;color:rgba(255,255,255,0.3);font-style:italic">Les ajustements apparaîtront une fois que tu auras saisi au moins 3 jours complets via le Calculateur.</p>';
   } else if(n < 3){
-    conseils = '<p style="font-size:13px;color:rgba(255,255,255,0.3)">Encore <strong style="color:rgba(255,255,255,0.5)">'+(3-n)+' jour(s)</strong> de données avant la première analyse.</p>';
+    conseils = '<p style="font-size:13px;color:rgba(255,255,255,0.3)">Encore <strong style="color:rgba(255,255,255,0.5)">'+(3-n)+' jour(s)</strong> de données avant la première analyse. Continue comme ça 💪</p>';
   } else {
+
+    // ── Helpers scoring Ciqual ────────────────────────────────────────────────
+    function topCorrectors(macroKey, deficitG, maxKcalPerPortion){
+      if(!CIQUAL || !CIQUAL.length) return [];
+      var MAX_KCAL = maxKcalPerPortion || 300;
+      var scored = CIQUAL
+        .filter(function(a){ return a[macroKey] != null && a[macroKey] > 0 && a.k > 0; })
+        .map(function(a){
+          var score = a[macroKey] / a.k;
+          var grams = Math.round((deficitG * 0.5) / (a[macroKey] / 100));
+          var kcal  = Math.round(grams * a.k / 100);
+          if(kcal > MAX_KCAL){ kcal = MAX_KCAL; grams = Math.round(MAX_KCAL / a.k * 100); }
+          var macroApport = Math.round(grams * a[macroKey] / 100);
+          return { nom: a.n, score: score, grams: grams, kcal: kcal, macroApport: macroApport };
+        })
+        .filter(function(a){ return a.grams >= 20 && a.grams <= 600 && a.macroApport >= 2; })
+        .sort(function(a, b){ return b.score - a.score; });
+      var seen = [], results = [];
+      for(var i = 0; i < scored.length && results.length < 5; i++){
+        var s = scored[i];
+        var family = s.nom.split(',')[0].split(' ').slice(0,2).join(' ').toLowerCase();
+        if(seen.indexOf(family) === -1){ seen.push(family); results.push(s); }
+      }
+      return results;
+    }
+
+    function freqLabel(deficitG, seuilG){
+      var ratio = deficitG / seuilG;
+      if(ratio < 0.15) return '2×/semaine';
+      if(ratio < 0.35) return '3×/semaine';
+      if(ratio < 0.6)  return '4×/semaine';
+      return 'chaque jour';
+    }
+
+    function blocCorrecteur(titre, color, bgColor, deficitG, seuilG, correctors, macroLabel){
+      var freq   = freqLabel(deficitG, seuilG);
+      var nbAlim = freq === '2×/semaine' ? 2 : freq === '3×/semaine' ? 3 : freq === '4×/semaine' ? 4 : 5;
+      var liste  = correctors.slice(0, nbAlim);
+      var itemsHtml = liste.map(function(a){
+        return '<div style="display:flex;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04)">'
+          +'<div style="font-size:13px;color:rgba(255,255,255,0.8);flex:1">'+a.nom+'</div>'
+          +'<div style="font-family:\'Space Mono\',monospace;font-size:11px;white-space:nowrap">'
+          +'<span style="color:rgba(255,255,255,0.35)">'+a.grams+'g</span>'
+          +' → <span style="color:'+color+'">+'+a.macroApport+'g '+macroLabel+'</span>'
+          +' <span style="color:rgba(255,255,255,0.2)">+'+a.kcal+' kcal</span>'
+          +'</div></div>';
+      }).join('');
+      return '<div style="padding:12px 16px;border-radius:8px;background:'+bgColor+';border-left:3px solid '+color+';margin-bottom:10px">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+        +'<div style="font-size:12px;font-weight:600;color:'+color+'">⚠ '+titre+'</div>'
+        +'<div style="font-size:10px;font-family:\'Space Mono\',monospace;color:'+color+';background:rgba(0,0,0,0.2);padding:2px 8px;border-radius:4px">'+freq+'</div>'
+        +'</div>'
+        +'<div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:10px">'
+        +'déficit moyen <strong style="color:'+color+'">−'+deficitG.toFixed(0)+'g/j</strong> · répartis ces aliments sur les occurrences de la semaine&nbsp;:</div>'
+        +itemsHtml+'</div>';
+    }
+
+    // ── Analyse déficits ─────────────────────────────────────────────────────
     var alertes = [], bons = [];
+
     if(avgP !== null && avgP < cProtMin){
-      alertes.push('<div style="padding:10px 14px;border-radius:8px;background:rgba(249,115,22,0.07);border-left:3px solid #f97316;margin-bottom:8px">'
-        +'<div style="font-size:12px;font-weight:600;color:#f97316;margin-bottom:4px">⚠ Protéines insuffisantes</div>'
-        +'<div style="font-size:12px;color:rgba(255,255,255,0.5)">Moy. : <strong style="color:#f97316">'+avgP+'g</strong> · seuil : '+cProtMin+'g · manque : −'+(cProtMin-avgP).toFixed(0)+'g/j</div>'
-        +'<div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px">Privilégie : poulet, œufs, fromage blanc, thon, lentilles, tofu</div></div>');
+      var defP = cProtMin - avgP;
+      var corrP = topCorrectors('p', defP, 300);
+      alertes.push(corrP.length
+        ? blocCorrecteur('Protéines insuffisantes','#f97316','rgba(249,115,22,0.07)', defP, cProtMin, corrP, 'prot')
+        : '<div style="padding:10px 14px;border-radius:8px;background:rgba(249,115,22,0.07);border-left:3px solid #f97316;margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:#f97316;margin-bottom:4px">⚠ Protéines insuffisantes</div><div style="font-size:12px;color:rgba(255,255,255,0.5)">Déficit moyen : −'+defP.toFixed(0)+'g/j · Privilégie : poulet, œufs, thon, fromage blanc</div></div>');
     } else if(avgP !== null) bons.push('Protéines ✓ ('+avgP+'g/j)');
 
     if(avgL !== null && avgL < cLip){
-      alertes.push('<div style="padding:10px 14px;border-radius:8px;background:rgba(167,139,250,0.07);border-left:3px solid #a78bfa;margin-bottom:8px">'
-        +'<div style="font-size:12px;font-weight:600;color:#a78bfa;margin-bottom:4px">⚠ Lipides sous le plancher</div>'
-        +'<div style="font-size:12px;color:rgba(255,255,255,0.5)">Moy. : <strong style="color:#a78bfa">'+avgL+'g</strong> · plancher : '+cLip+'g · manque : −'+(cLip-avgL).toFixed(0)+'g/j</div>'
-        +'<div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px">Privilégie : avocat, noix, huile d\'olive, saumon, œufs entiers, sardines</div></div>');
+      var defL = cLip - avgL;
+      var corrL = topCorrectors('l', defL, 250);
+      alertes.push(corrL.length
+        ? blocCorrecteur('Lipides sous le plancher','#a78bfa','rgba(167,139,250,0.07)', defL, cLip, corrL, 'lip')
+        : '<div style="padding:10px 14px;border-radius:8px;background:rgba(167,139,250,0.07);border-left:3px solid #a78bfa;margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:#a78bfa;margin-bottom:4px">⚠ Lipides sous le plancher</div><div style="font-size:12px;color:rgba(255,255,255,0.5)">Déficit moyen : −'+defL.toFixed(0)+'g/j · Privilégie : avocat, noix, huile d\'olive, saumon</div></div>');
     } else if(avgL !== null) bons.push('Lipides ✓ ('+avgL+'g/j)');
 
     if(avgF !== null && avgF < cFibres){
-      alertes.push('<div style="padding:10px 14px;border-radius:8px;background:rgba(74,222,128,0.07);border-left:3px solid #4ade80;margin-bottom:8px">'
-        +'<div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:4px">⚠ Fibres insuffisantes</div>'
-        +'<div style="font-size:12px;color:rgba(255,255,255,0.5)">Moy. : <strong style="color:#4ade80">'+avgF+'g</strong> · cible : '+cFibres+'g · manque : −'+(cFibres-avgF).toFixed(0)+'g/j</div>'
-        +'<div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px">Privilégie : légumineuses, légumes verts, chia, flocons d\'avoine, pruneaux</div></div>');
+      var defF = cFibres - avgF;
+      var corrF = topCorrectors('f', defF, 200);
+      alertes.push(corrF.length
+        ? blocCorrecteur('Fibres insuffisantes','#4ade80','rgba(74,222,128,0.07)', defF, cFibres, corrF, 'fib')
+        : '<div style="padding:10px 14px;border-radius:8px;background:rgba(74,222,128,0.07);border-left:3px solid #4ade80;margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:4px">⚠ Fibres insuffisantes</div><div style="font-size:12px;color:rgba(255,255,255,0.5)">Déficit moyen : −'+defF.toFixed(0)+'g/j · Privilégie : légumineuses, légumes verts, flocons d\'avoine</div></div>');
     } else if(avgF !== null) bons.push('Fibres ✓ ('+avgF+'g/j)');
 
+    // ── Glucides en excès ────────────────────────────────────────────────────
+    if(avgG !== null && avgP !== null && avgL !== null){
+      var budgetGluc = Math.round((c.kcal - (avgP * 4) - (avgL * 9)) / 4);
+      if(budgetGluc > 0 && avgG > budgetGluc * 1.1){
+        var glucContrib = {};
+        withData.forEach(function(day){
+          if(!day.data || !day.data.items) return;
+          day.data.items.forEach(function(it){
+            if(it.g == null || it.g <= 0) return;
+            if(!glucContrib[it.nom]) glucContrib[it.nom] = { nom: it.nom, totalG: 0 };
+            glucContrib[it.nom].totalG += it.g;
+          });
+        });
+        var topGluc = Object.values(glucContrib).sort(function(a,b){ return b.totalG-a.totalG; }).slice(0,3);
+        if(topGluc.length){
+          var exces = (avgG - budgetGluc).toFixed(0);
+          var topHtml = topGluc.map(function(a){
+            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04)">'
+              +'<div style="font-size:13px;color:rgba(255,255,255,0.8)">'+a.nom+'</div>'
+              +'<div style="font-family:\'Space Mono\',monospace;font-size:11px;color:#38bdf8">~'+(a.totalG/n).toFixed(0)+'g gluc/j en moy.</div>'
+              +'</div>';
+          }).join('');
+          alertes.push('<div style="padding:12px 16px;border-radius:8px;background:rgba(56,189,248,0.06);border-left:3px solid #38bdf8;margin-bottom:10px">'
+            +'<div style="font-size:12px;font-weight:600;color:#38bdf8;margin-bottom:6px">📈 Glucides au-dessus du budget</div>'
+            +'<div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:10px">Moy. : <strong style="color:#38bdf8">'+avgG+'g/j</strong> · budget estimé : '+budgetGluc+'g/j · excès : +'+exces+'g/j<br>'
+            +'<span style="color:rgba(255,255,255,0.25)">Principaux contributeurs à moduler en priorité :</span></div>'
+            +topHtml+'</div>');
+        }
+      } else if(avgG !== null) bons.push('Glucides ✓ ('+avgG+'g/j, budget ~'+Math.max(0,budgetGluc)+'g)');
+    }
+
+    // ── Rendu final ───────────────────────────────────────────────────────────
     conseils = alertes.length === 0
-      ? '<div style="padding:12px 16px;border-radius:8px;background:rgba(34,197,94,0.08);border-left:3px solid #22c55e">'
-        +'<div style="font-size:13px;font-weight:600;color:#22c55e;margin-bottom:4px">✓ Bonne semaine</div>'
-        +'<div style="font-size:12px;color:rgba(255,255,255,0.4)">Tous les seuils respectés sur '+n+' jours.</div></div>'
+      ? '<div style="padding:12px 16px;border-radius:8px;background:rgba(34,197,94,0.08);border-left:3px solid #22c55e;margin-bottom:12px"><div style="font-size:13px;font-weight:600;color:#22c55e;margin-bottom:4px">✓ Bonne semaine</div><div style="font-size:12px;color:rgba(255,255,255,0.4)">Tous les seuils sont respectés sur les '+n+' jours analysés.</div></div>'
       : alertes.join('');
 
-    if(bons.length > 0) conseils += '<div style="font-size:11px;color:rgba(255,255,255,0.25);margin-top:8px">'+bons.join(' · ')+'</div>';
+    if(bons.length > 0) conseils += '<div style="font-size:11px;color:rgba(255,255,255,0.25);margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.05)">'+bons.join(' · ')+'</div>';
   }
   document.getElementById('bilanHebdoConseillsContent').innerHTML = conseils;
 }
@@ -3833,183 +3926,6 @@ function applyObjectif(kcal){
   setTimeout(()=>{ btn.textContent=orig; btn.style.color=''; btn.style.borderColor=''; }, 2000);
 }
 
-/* ── BILAN HEBDO ── */
-function renderBilanHebdo(){
-  const c = getNutriCibles();
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-
-  // 7 derniers jours avec macros renseignées
-  const last7 = [];
-  for(let i = 6; i >= 0; i--){
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    const ds = d.toISOString().split('T')[0];
-    const found = days.find(function(x){ return x.date === ds && (x.p != null || x.g != null || x.l != null || x.f != null); });
-    last7.push({ dateStr: ds, label: d.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'}), data: found || null });
-  }
-
-  const withData = last7.filter(function(d){ return d.data !== null; });
-  const n = withData.length;
-
-  // Subtitle
-  const subtitle = document.getElementById('bilanHebdoSubtitle');
-  subtitle.textContent = n === 0
-    ? 'Aucune donnée macro cette semaine — utilise le Calculateur chaque jour pour alimenter cette section.'
-    : n + ' jour' + (n > 1 ? 's' : '') + ' avec données macro sur 7';
-
-  // Moyennes
-  function avg(key){ return n === 0 ? null : parseFloat((withData.reduce(function(s,d){ return s + (d.data[key] || 0); }, 0) / n).toFixed(1)); }
-  const avgP = avg('p'), avgG = avg('g'), avgL = avg('l'), avgF = avg('f');
-
-  // Jours sous le plancher
-  function joursOk(key, cible){
-    return withData.filter(function(d){ return (d.data[key] || 0) >= cible; }).length;
-  }
-  const okP = joursOk('p', c.protMin);
-  const okL = joursOk('l', c.lip);
-  const okF = joursOk('f', c.fibres);
-
-  // KPI cards
-  function kpiCard(label, avg, cibleLabel, cibleVal, color, joursOk, unit){
-    if(avg === null){
-      return '<div class="card"><div class="card-label">'+label+'</div><div class="card-value" style="color:rgba(255,255,255,0.2);font-size:18px">—</div><div class="card-unit">pas encore de données</div></div>';
-    }
-    const ok = avg >= cibleVal;
-    const ecart = parseFloat((avg - cibleVal).toFixed(1));
-    const ecartStr = (ecart >= 0 ? '+' : '') + ecart + 'g';
-    const statusColor = ok ? '#22c55e' : (avg >= cibleVal * 0.8 ? '#facc15' : '#ef4444');
-    const fill = Math.min(Math.round(avg / cibleVal * 100), 100);
-    const joursLabel = unit ? '' : (joursOk + '/' + n + ' j au-dessus du seuil');
-    return '<div class="card">'
-      +'<div class="card-label">'+label+' <span style="color:rgba(255,255,255,0.2);font-weight:normal">(moy. 7j)</span></div>'
-      +'<div class="card-value" style="color:'+color+'">'+avg+'<span style="font-size:14px;color:rgba(255,255,255,0.3)">g</span></div>'
-      +'<div style="height:6px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden;margin:8px 0">'
-        +'<div style="height:100%;width:'+fill+'%;background:'+color+';opacity:0.7;border-radius:3px;transition:width .4s"></div>'
-      +'</div>'
-      +'<div style="display:flex;justify-content:space-between;font-size:10px">'
-        +'<span style="color:'+statusColor+'">'+ecartStr+' vs seuil</span>'
-        +'<span style="color:rgba(255,255,255,0.2)">'+cibleLabel+'</span>'
-      +'</div>'
-      +(n > 0 ? '<div style="font-size:10px;color:rgba(255,255,255,0.25);margin-top:4px">'+joursLabel+'</div>' : '')
-      +'</div>';
-  }
-
-  document.getElementById('bilanHebdoKpi').innerHTML =
-    kpiCard('Protéines', avgP, '≥'+c.protMin+'g ('+c.protMin+'–'+c.protMax+'g)', c.protMin, '#f97316', okP)
-    + kpiCard('Lipides',   avgL, '≥'+c.lip+'g plancher',   c.lip,    '#a78bfa', okL)
-    + kpiCard('Fibres',    avgF, '≥'+c.fibres+'g OMS',     c.fibres, '#4ade80', okF)
-    + '<div class="card"><div class="card-label">Glucides <span style="color:rgba(255,255,255,0.2);font-weight:normal">(moy. 7j)</span></div>'
-    + '<div class="card-value" style="color:#38bdf8">'+(avgG !== null ? avgG : '—')+'<span style="font-size:14px;color:rgba(255,255,255,0.3)">'+(avgG !== null ? 'g' : '')+'</span></div>'
-    + '<div style="font-size:10px;color:rgba(255,255,255,0.2);margin-top:10px">variable d\'ajustement — pas de seuil</div></div>';
-
-  // Tableau des 7 jours
-  const macros = [{key:'p',color:'#f97316',cible:c.protMin},{key:'l',color:'#a78bfa',cible:c.lip},{key:'g',color:'#38bdf8',cible:null},{key:'f',color:'#4ade80',cible:c.fibres}];
-  const labels = {p:'Prot',l:'Lip',g:'Gluc',f:'Fib'};
-
-  var tableRows = last7.map(function(day){
-    var isToday = day.dateStr === todayStr;
-    var d = day.data;
-    var cellStyle = 'padding:5px 8px;font-size:11px;text-align:right;font-family:"Space Mono",monospace;';
-    var cells = macros.map(function(m){
-      if(!d || d[m.key] == null) return '<td style="'+cellStyle+'color:rgba(255,255,255,0.15)">—</td>';
-      var v = d[m.key];
-      var ok = m.cible ? v >= m.cible : true;
-      var col = m.cible ? (ok ? m.color : (v >= m.cible*0.8 ? '#facc15' : '#ef4444')) : m.color;
-      return '<td style="'+cellStyle+'color:'+col+'">'+v+'g</td>';
-    }).join('');
-    return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);'+(isToday?'background:rgba(249,115,22,0.04)':'')+'">'
-      +'<td style="padding:5px 8px;font-size:11px;font-family:\'Space Mono\',monospace;color:'+(isToday?'#f97316':'rgba(255,255,255,0.4)')+'">'+day.label+(isToday?' ·auj':'')+'</td>'
-      +(d ? '<td style="padding:5px 8px;font-size:11px;text-align:right;color:rgba(255,255,255,0.35)">'+d.calories+' kcal</td>' : '<td style="padding:5px 8px;font-size:11px;text-align:right;color:rgba(255,255,255,0.15)">—</td>')
-      +cells
-      +'</tr>';
-  }).join('');
-
-  document.getElementById('bilanHebdoTable').innerHTML = n === 0
-    ? '<p class="empty-msg">Aucune donnée pour cette semaine. Saisis ta première journée via le Calculateur.</p>'
-    : '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
-      +'<thead><tr style="border-bottom:1px solid rgba(255,255,255,0.08)">'
-      +'<th style="padding:4px 8px;font-size:10px;color:rgba(255,255,255,0.2);text-align:left;font-weight:normal">Jour</th>'
-      +'<th style="padding:4px 8px;font-size:10px;color:rgba(255,255,255,0.2);text-align:right;font-weight:normal">Kcal</th>'
-      +'<th style="padding:4px 8px;font-size:10px;color:#f97316;text-align:right;font-weight:normal">Prot</th>'
-      +'<th style="padding:4px 8px;font-size:10px;color:#a78bfa;text-align:right;font-weight:normal">Lip</th>'
-      +'<th style="padding:4px 8px;font-size:10px;color:#38bdf8;text-align:right;font-weight:normal">Gluc</th>'
-      +'<th style="padding:4px 8px;font-size:10px;color:#4ade80;text-align:right;font-weight:normal">Fib</th>'
-      +'</tr></thead><tbody>'+tableRows+'</tbody></table></div>';
-
-  // Bloc conseils
-  var conseils = '';
-  if(n === 0){
-    conseils = '<p style="font-size:13px;color:rgba(255,255,255,0.3);font-style:italic">Les conseils apparaîtront une fois que tu auras saisi au moins 3 jours complets via le Calculateur.</p>';
-  } else if(n < 3){
-    conseils = '<p style="font-size:13px;color:rgba(255,255,255,0.3)">Encore <strong style="color:rgba(255,255,255,0.5)">'+(3-n)+' jour(s)</strong> de données avant la première analyse. Continue comme ça 💪</p>';
-  } else {
-    var alertes = [];
-    var bons = [];
-
-    if(avgP !== null && avgP < c.protMin){
-      var manque = (c.protMin - avgP).toFixed(0);
-      alertes.push('<div style="padding:10px 14px;border-radius:8px;background:rgba(249,115,22,0.07);border-left:3px solid #f97316;margin-bottom:8px">'
-        +'<div style="font-size:12px;font-weight:600;color:#f97316;margin-bottom:4px">⚠ Protéines insuffisantes</div>'
-        +'<div style="font-size:12px;color:rgba(255,255,255,0.5)">Moyenne : <strong style="color:#f97316">'+avgP+'g</strong> · seuil : '+c.protMin+'g/j · déficit moyen : −'+manque+'g/j</div>'
-        +'<div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px">Privilégie : poulet, œufs, fromage blanc, thon, lentilles, tofu</div>'
-        +'</div>');
-    } else if(avgP !== null){
-      bons.push('Protéines ✓ ('+avgP+'g/j en moyenne)');
-    }
-
-    if(avgL !== null && avgL < c.lip){
-      var manqueL = (c.lip - avgL).toFixed(0);
-      alertes.push('<div style="padding:10px 14px;border-radius:8px;background:rgba(167,139,250,0.07);border-left:3px solid #a78bfa;margin-bottom:8px">'
-        +'<div style="font-size:12px;font-weight:600;color:#a78bfa;margin-bottom:4px">⚠ Lipides sous le plancher</div>'
-        +'<div style="font-size:12px;color:rgba(255,255,255,0.5)">Moyenne : <strong style="color:#a78bfa">'+avgL+'g</strong> · plancher : '+c.lip+'g/j · déficit moyen : −'+manqueL+'g/j</div>'
-        +'<div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px">Privilégie : avocat, noix, huile d\'olive, saumon, œufs entiers, sardines</div>'
-        +'</div>');
-    } else if(avgL !== null){
-      bons.push('Lipides ✓ ('+avgL+'g/j en moyenne)');
-    }
-
-    if(avgF !== null && avgF < c.fibres){
-      var manqueF = (c.fibres - avgF).toFixed(0);
-      alertes.push('<div style="padding:10px 14px;border-radius:8px;background:rgba(74,222,128,0.07);border-left:3px solid #4ade80;margin-bottom:8px">'
-        +'<div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:4px">⚠ Fibres insuffisantes</div>'
-        +'<div style="font-size:12px;color:rgba(255,255,255,0.5)">Moyenne : <strong style="color:#4ade80">'+avgF+'g</strong> · cible OMS : '+c.fibres+'g/j · déficit moyen : −'+manqueF+'g/j</div>'
-        +'<div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px">Privilégie : légumineuses, légumes verts, graines de chia, flocons d\'avoine, pruneaux</div>'
-        +'</div>');
-    } else if(avgF !== null){
-      bons.push('Fibres ✓ ('+avgF+'g/j en moyenne)');
-    }
-
-    if(alertes.length === 0){
-      conseils = '<div style="padding:12px 16px;border-radius:8px;background:rgba(34,197,94,0.08);border-left:3px solid #22c55e;margin-bottom:12px">'
-        +'<div style="font-size:13px;font-weight:600;color:#22c55e;margin-bottom:4px">✓ Bonne semaine</div>'
-        +'<div style="font-size:12px;color:rgba(255,255,255,0.4)">Tous les seuils sont respectés sur les '+n+' jours analysés.</div>'
-        +'</div>';
-    } else {
-      conseils = alertes.join('');
-    }
-
-    if(bons.length > 0){
-      conseils += '<div style="font-size:11px;color:rgba(255,255,255,0.25);margin-top:8px">'+bons.join(' · ')+'</div>';
-    }
-
-    // Bilan dimanche
-    var isSunday = today.getDay() === 0;
-    if(isSunday && n >= 5){
-      document.getElementById('bilanHebdoDimanche').style.display = 'block';
-      conseils += '<div style="margin-top:16px;padding:12px 16px;border-radius:8px;background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.2)">'
-        +'<div style="font-size:12px;font-weight:600;color:#f97316;margin-bottom:6px">📊 Récap semaine ('+n+' jours)</div>'
-        +'<div style="font-size:11px;color:rgba(255,255,255,0.35);line-height:1.8">'
-        +(avgP !== null ? 'Prot moyenne : '+avgP+'g/j · ' : '')
-        +(avgL !== null ? 'Lip moyenne : '+avgL+'g/j · ' : '')
-        +(avgF !== null ? 'Fibres : '+avgF+'g/j · ' : '')
-        +(avgG !== null ? 'Gluc : '+avgG+'g/j' : '')
-        +'</div></div>';
-    }
-  }
-
-  document.getElementById('bilanHebdoConseillsContent').innerHTML = conseils;
-}
 
 
 // Chargement CIQUAL depuis fichier externe, puis init
