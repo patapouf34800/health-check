@@ -1026,6 +1026,7 @@ function addTension(){
 }
 
 function deleteTension(date){
+  if(!confirm('Supprimer la mesure de tension du '+date+' ?')) return;
   tensions = tensions.filter(function(t){ return t.date !== date; });
   saveData();
   renderTension();
@@ -1789,9 +1790,9 @@ function renderCalcItems(){
     :`<span class="red">+${Math.abs(diff).toLocaleString('fr-FR')} kcal au-dessus de l'objectif de ${obj.toLocaleString('fr-FR')} kcal</span>`;
 }
 
-function removeCalcItem(i){ calcItems.splice(i,1); renderCalcItems(); saveData(); }
+function removeCalcItem(i){ if(!confirm('Retirer "'+calcItems[i].nom+'" de la liste ?')) return; calcItems.splice(i,1); renderCalcItems(); saveData(); }
 
-function clearCalc(){ calcItems=[]; renderCalcItems(); saveData(); }
+function clearCalc(){ if(!confirm('Vider tous les aliments de la liste ?')) return; calcItems=[]; renderCalcItems(); saveData(); }
 
 function validerJournee(){
   const total=calcItems.reduce((s,i)=>s+i.kcal,0);
@@ -3456,7 +3457,7 @@ function cancelEditDay(i){
   refresh();
 }
 
-function deleteDay(i){ days.splice(i,1); refresh(); saveData(); }
+function deleteDay(i){ if(!confirm('Supprimer l\'entrée du '+days[i].label+' ?')) return; days.splice(i,1); refresh(); saveData(); }
 function clearAll(){ if(confirm('Effacer toutes les données ?')){ days=[]; refresh(); saveData(); } }
 
 /* ── PESÉES ── */
@@ -3475,7 +3476,7 @@ function addPesee(){
   syncObjectifDynamique(); refresh(); saveData();
 }
 
-function deletePesee(i){pesees.splice(i,1);syncObjectifDynamique();refresh();saveData();}
+function deletePesee(i){ if(!confirm('Supprimer la pesée du '+pesees[i].label+' ?')) return; pesees.splice(i,1); syncObjectifDynamique(); refresh(); saveData(); }
 
 function renderPeseeList(){
   const el=document.getElementById('peseeList');
