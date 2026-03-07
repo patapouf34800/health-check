@@ -778,7 +778,6 @@
     <div class="chart-card" id="nutriCiblesCard">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div class="chart-title" style="margin-bottom:0">🎯 Cibles journalières</div>
-        <span style="font-size:10px;color:rgba(255,255,255,0.2)" id="nutriCiblesBase"></span>
       </div>
       <div class="kpi-grid" id="nutriCiblesGrid"></div>
       <p style="font-size:11px;color:rgba(255,255,255,0.2);margin-top:12px">Protéines : 1.2–1.6g/kg (consensus déficit calorique) · Lipides : plancher ≥40g/jour (vitamines liposolubles) · Fibres : ≥25g/jour (OMS) · Glucides : pas de minimum physiologique établi</p>
@@ -3153,9 +3152,6 @@ function getNutriCibles(){
 
 function renderNutriCibles(){
   const c = getNutriCibles();
-  const base = document.getElementById('nutriCiblesBase');
-  if(base) base.textContent = 'Base : '+c.poids+'kg · objectif '+c.kcal.toLocaleString('fr-FR')+' kcal';
-
   const grid = document.getElementById('nutriCiblesGrid');
   if(!grid) return;
   grid.innerHTML = [
