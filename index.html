@@ -245,10 +245,6 @@
         <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>Surplus (au-dessus de l'objectif)</div>
       </div>
     </div>
-    <div class="chart-card">
-      <div class="chart-title">Détail par jour</div>
-      <div class="day-list" id="deficitList"></div>
-    </div>
   </div>
 
   <!-- POIDS -->
@@ -1295,7 +1291,7 @@ function importData(event){
 function refresh(){
   const s=computeStats();
   renderKPI(s); renderChartMain(s); renderChartDeficit(s); renderChartPoids(s);
-  renderDeficitList(s); renderSaisieList(s); renderPoidsCards(s);
+  renderSaisieList(s); renderPoidsCards(s);
   renderRefs(); renderCalcSelect(); renderCalcItems(); renderPeseeList(); renderVelo(); renderBilans(); renderAllSanteSections(); renderDocuments();
   initCorrMarqueur();
   // Sync dashboard period buttons
@@ -1514,19 +1510,6 @@ function renderChartPoids(s){
     tooltip.style.top=(area.top+4)+'px';
   });
   canvas.addEventListener('mouseleave',function(){crosshair.style.display='none';tooltip.style.display='none';});
-}
-
-function renderDeficitList(s){
-  const el=document.getElementById('deficitList');
-  const fd=getFilteredDeficit().map(d=>({...d,deficit:d.objectif-d.calories}));
-  if(!fd.length){el.innerHTML='<p class="empty-msg">Aucune donnée enregistrée.</p>';return;}
-  el.innerHTML=fd.slice().reverse().map(d=>`
-    <div class="day-row">
-      <span class="day-date">${d.label}</span>
-      <div class="day-bar-wrap"><div class="day-bar" style="width:${Math.min(100,d.calories/d.objectif*100)}%;background:${defColor(d.deficit)}"></div></div>
-      <span class="day-cal">${d.calories.toLocaleString('fr-FR')} kcal</span>
-      <span class="day-def ${defClass(d.deficit)}">${defSign(d.deficit)}${Math.abs(Math.round(d.deficit)).toLocaleString('fr-FR')} kcal</span>
-    </div>`).join('');
 }
 
 function renderSaisieList(s){
@@ -3101,7 +3084,7 @@ function setDeficitPeriod(period, btn){
   document.querySelectorAll('.deficit-period-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   const s=computeStats();
-  renderChartDeficit(s); renderDeficitList(s);
+  renderChartDeficit(s);
 }
 
 /* ── NUTRIMENTS ── */
