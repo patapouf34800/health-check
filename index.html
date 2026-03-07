@@ -14,6 +14,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap');
@@ -970,20 +971,19 @@ function renderTension(){
     // Zones en background via annotation plugin indisponible — on utilise des datasets fill
     // Bandes colorées : datasets empilés fill between
     const datasets = [
-      // Lignes de référence horizontales (pas dans tooltip ni légende)
-      { label:'_ref_sys_opt',  data: tensions.map(function(){ return 120; }), borderColor:'rgba(34,197,94,0.25)',  borderWidth:1, borderDash:[4,4], pointRadius:0, fill:false, yAxisID:'y' },
-      { label:'_ref_sys_nor',  data: tensions.map(function(){ return 130; }), borderColor:'rgba(234,179,8,0.2)',   borderWidth:1, borderDash:[4,4], pointRadius:0, fill:false, yAxisID:'y' },
-      { label:'_ref_sys_haut', data: tensions.map(function(){ return 140; }), borderColor:'rgba(249,115,22,0.25)', borderWidth:1, borderDash:[4,4], pointRadius:0, fill:false, yAxisID:'y' },
-      { label:'_ref_sys_h1',   data: tensions.map(function(){ return 160; }), borderColor:'rgba(239,68,68,0.3)',   borderWidth:1, borderDash:[4,4], pointRadius:0, fill:false, yAxisID:'y' },
-      { label:'_ref_dia_opt',  data: tensions.map(function(){ return 80; }),  borderColor:'rgba(34,197,94,0.15)',  borderWidth:1, borderDash:[2,4], pointRadius:0, fill:false, yAxisID:'y' },
-      { label:'_ref_dia_nor',  data: tensions.map(function(){ return 85; }),  borderColor:'rgba(234,179,8,0.12)',  borderWidth:1, borderDash:[2,4], pointRadius:0, fill:false, yAxisID:'y' },
-      { label:'_ref_dia_haut', data: tensions.map(function(){ return 90; }),  borderColor:'rgba(249,115,22,0.15)', borderWidth:1, borderDash:[2,4], pointRadius:0, fill:false, yAxisID:'y' },
-      { label:'_ref_dia_h1',   data: tensions.map(function(){ return 100; }), borderColor:'rgba(239,68,68,0.2)',   borderWidth:1, borderDash:[2,4], pointRadius:0, fill:false, yAxisID:'y' },
-      // Lignes données
       { label:'Systolique', data: sysVals, borderColor:'rgba(239,68,68,0.9)', backgroundColor:'rgba(239,68,68,0.15)', pointRadius:4, pointHoverRadius:6, borderWidth:2, tension:0.3, fill:false, yAxisID:'y' },
       { label:'Diastolique', data: diaVals, borderColor:'rgba(56,189,248,0.9)', backgroundColor:'rgba(56,189,248,0.15)', pointRadius:4, pointHoverRadius:6, borderWidth:2, tension:0.3, fill:false, yAxisID:'y' },
     ];
-    if(hasPouls) datasets.push({ label:'Pouls', data: poulsVals, borderColor:'rgba(255,255,255,0.3)', pointRadius:3, pointHoverRadius:5, borderWidth:1.5, borderDash:[4,3], tension:0.3, fill:false, yAxisID:'y2' });
+    if(hasPouls) datasets.push({ label:'Pouls', data: poulsVals, borderColor:'rgba(255,255,255,0.35)', pointRadius:3, pointHoverRadius:5, borderWidth:1.5, tension:0.3, fill:false, yAxisID:'y2' });
+
+    // Zones colorées via annotations
+    const zones = {
+      zone_opt:  { type:'box', yMin:60,  yMax:120, backgroundColor:'rgba(34,197,94,0.07)',   borderWidth:0, label:{display:true, content:'Optimale',       color:'rgba(34,197,94,0.3)',         font:{size:9}, position:{x:'start',y:'end'}} },
+      zone_nor:  { type:'box', yMin:120, yMax:130, backgroundColor:'rgba(163,230,53,0.07)',  borderWidth:0, label:{display:true, content:'Normale',         color:'rgba(163,230,53,0.3)',        font:{size:9}, position:{x:'start',y:'end'}} },
+      zone_haut: { type:'box', yMin:130, yMax:140, backgroundColor:'rgba(234,179,8,0.07)',   borderWidth:0, label:{display:true, content:'Normale haute',   color:'rgba(234,179,8,0.3)',         font:{size:9}, position:{x:'start',y:'end'}} },
+      zone_h1:   { type:'box', yMin:140, yMax:160, backgroundColor:'rgba(249,115,22,0.08)',  borderWidth:0, label:{display:true, content:'HTA G1',          color:'rgba(249,115,22,0.3)',        font:{size:9}, position:{x:'start',y:'end'}} },
+      zone_h2:   { type:'box', yMin:160, yMax:185, backgroundColor:'rgba(239,68,68,0.08)',   borderWidth:0, label:{display:true, content:'HTA G2',          color:'rgba(239,68,68,0.3)',         font:{size:9}, position:{x:'start',y:'end'}} },
+    };
 
     charts['tension'] = new Chart(cvs.getContext('2d'), {
       type:'line',
@@ -992,6 +992,7 @@ function renderTension(){
         responsive:true, maintainAspectRatio:false,
         interaction:{ mode:'index', intersect:false },
         plugins:{
+          annotation:{ annotations: zones },
           legend:{
             display:true,
             labels:{
