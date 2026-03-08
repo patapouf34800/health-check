@@ -450,6 +450,98 @@
       </div>
       <div class="ref-grid" id="refGrid"></div>
     </div>
+
+    <!-- DONNÉES MACRO CIQUAL -->
+    <div class="chart-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+        <div>
+          <div class="chart-title" style="margin-bottom:2px">🔬 Données macro CIQUAL</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.25)">Parcourez les 3 264 aliments avec filtres sur les valeurs nutritionnelles pour 100g</div>
+        </div>
+      </div>
+
+      <!-- Filtres -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">
+
+        <!-- Recherche nom -->
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Recherche par nom</label>
+          <input type="text" id="ciqualFilterNom" placeholder="ex: poulet, lentilles, sardine…" oninput="renderCiqualExplorer()" style="width:100%">
+        </div>
+
+        <!-- Kcal -->
+        <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px">
+          <div style="font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">⚡ Kcal / 100g</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="number" id="ciqualKcalMin" placeholder="min" min="0" oninput="renderCiqualExplorer()" style="width:80px;font-size:12px">
+            <span style="color:rgba(255,255,255,0.2);font-size:11px">–</span>
+            <input type="number" id="ciqualKcalMax" placeholder="max" min="0" oninput="renderCiqualExplorer()" style="width:80px;font-size:12px">
+          </div>
+        </div>
+
+        <!-- Protéines -->
+        <div style="background:rgba(249,115,22,0.04);border:1px solid rgba(249,115,22,0.12);border-radius:10px;padding:12px">
+          <div style="font-size:10px;color:#f97316;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Protéines / 100g</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="number" id="ciqualProtMin" placeholder="min" min="0" oninput="renderCiqualExplorer()" style="width:80px;font-size:12px">
+            <span style="color:rgba(255,255,255,0.2);font-size:11px">–</span>
+            <input type="number" id="ciqualProtMax" placeholder="max" min="0" oninput="renderCiqualExplorer()" style="width:80px;font-size:12px">
+          </div>
+        </div>
+
+        <!-- Glucides -->
+        <div style="background:rgba(56,189,248,0.04);border:1px solid rgba(56,189,248,0.12);border-radius:10px;padding:12px">
+          <div style="font-size:10px;color:#38bdf8;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Glucides / 100g</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="number" id="ciqualGlucMin" placeholder="min" min="0" oninput="renderCiqualExplorer()" style="width:80px;font-size:12px">
+            <span style="color:rgba(255,255,255,0.2);font-size:11px">–</span>
+            <input type="number" id="ciqualGlucMax" placeholder="max" min="0" oninput="renderCiqualExplorer()" style="width:80px;font-size:12px">
+          </div>
+        </div>
+
+        <!-- Lipides -->
+        <div style="background:rgba(167,139,250,0.04);border:1px solid rgba(167,139,250,0.12);border-radius:10px;padding:12px">
+          <div style="font-size:10px;color:#a78bfa;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Lipides / 100g</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="number" id="ciqualLipMin" placeholder="min" min="0" oninput="renderCiqualExplorer()" style="width:80px;font-size:12px">
+            <span style="color:rgba(255,255,255,0.2);font-size:11px">–</span>
+            <input type="number" id="ciqualLipMax" placeholder="max" min="0" oninput="renderCiqualExplorer()" style="width:80px;font-size:12px">
+          </div>
+        </div>
+
+        <!-- Fibres -->
+        <div style="background:rgba(74,222,128,0.04);border:1px solid rgba(74,222,128,0.12);border-radius:10px;padding:12px">
+          <div style="font-size:10px;color:#4ade80;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Fibres / 100g</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="number" id="ciqualFibMin" placeholder="min" min="0" oninput="renderCiqualExplorer()" style="width:80px;font-size:12px">
+            <span style="color:rgba(255,255,255,0.2);font-size:11px">–</span>
+            <input type="number" id="ciqualFibMax" placeholder="max" min="0" oninput="renderCiqualExplorer()" style="width:80px;font-size:12px">
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Tri + reset -->
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+        <div style="font-size:11px;color:rgba(255,255,255,0.3)">Trier par :</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap" id="ciqualSortBtns">
+          <button class="btn btn-secondary" onclick="setCiqualSort('nom')" id="csort-nom" style="font-size:10px;padding:4px 10px">Nom</button>
+          <button class="btn btn-secondary" onclick="setCiqualSort('k')" id="csort-k" style="font-size:10px;padding:4px 10px">Kcal</button>
+          <button class="btn btn-secondary" onclick="setCiqualSort('p')" id="csort-p" style="font-size:10px;padding:4px 10px;color:#f97316;border-color:rgba(249,115,22,0.3)">Prot</button>
+          <button class="btn btn-secondary" onclick="setCiqualSort('g')" id="csort-g" style="font-size:10px;padding:4px 10px;color:#38bdf8;border-color:rgba(56,189,248,0.3)">Gluc</button>
+          <button class="btn btn-secondary" onclick="setCiqualSort('l')" id="csort-l" style="font-size:10px;padding:4px 10px;color:#a78bfa;border-color:rgba(167,139,250,0.3)">Lip</button>
+          <button class="btn btn-secondary" onclick="setCiqualSort('f')" id="csort-f" style="font-size:10px;padding:4px 10px;color:#4ade80;border-color:rgba(74,222,128,0.3)">Fibres</button>
+        </div>
+        <button class="btn btn-secondary" onclick="resetCiqualFilters()" style="font-size:10px;padding:4px 10px;margin-left:auto">✕ Réinitialiser</button>
+      </div>
+
+      <!-- Résultats -->
+      <div id="ciqualExplorerCount" style="font-size:11px;color:rgba(255,255,255,0.25);margin-bottom:10px"></div>
+      <div id="ciqualExplorerResults" style="display:flex;flex-direction:column;gap:4px;max-height:480px;overflow-y:auto"></div>
+      <div id="ciqualExplorerMore" style="margin-top:10px;text-align:center;display:none">
+        <button class="btn btn-secondary" onclick="ciqualExplorerLoadMore()" style="font-size:11px;padding:6px 16px">Afficher 50 de plus</button>
+      </div>
+    </div>
   </div>
 
   <!-- TDEE -->
@@ -3965,6 +4057,156 @@ function applyObjectif(kcal){
 }
 
 
+
+/* ── EXPLORATEUR CIQUAL ── */
+var _ciqualSortKey = 'p';
+var _ciqualSortDir = 'desc';
+var _ciqualPage = 50;
+
+function getCiqualFilters(){
+  function n(id){ const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? null : v; }
+  const nom = (document.getElementById('ciqualFilterNom').value || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  return {
+    nom,
+    kcalMin: n('ciqualKcalMin'), kcalMax: n('ciqualKcalMax'),
+    protMin: n('ciqualProtMin'), protMax: n('ciqualProtMax'),
+    glucMin: n('ciqualGlucMin'), glucMax: n('ciqualGlucMax'),
+    lipMin:  n('ciqualLipMin'),  lipMax:  n('ciqualLipMax'),
+    fibMin:  n('ciqualFibMin'),  fibMax:  n('ciqualFibMax'),
+  };
+}
+
+function ciqualPassFilter(a, f){
+  // Filtre nom
+  if(f.nom){
+    const an = a.n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    if(!an.includes(f.nom)) return false;
+  }
+  // Exclure r>=3 (plats industriels) — même critère que les suggestions
+  if((a.r||0) >= 3) return false;
+  // Filtres numériques
+  if(f.kcalMin !== null && (a.k == null || a.k < f.kcalMin)) return false;
+  if(f.kcalMax !== null && (a.k == null || a.k > f.kcalMax)) return false;
+  if(f.protMin !== null && (a.p == null || a.p < f.protMin)) return false;
+  if(f.protMax !== null && (a.p == null || a.p > f.protMax)) return false;
+  if(f.glucMin !== null && (a.g == null || a.g < f.glucMin)) return false;
+  if(f.glucMax !== null && (a.g == null || a.g > f.glucMax)) return false;
+  if(f.lipMin  !== null && (a.l == null || a.l < f.lipMin))  return false;
+  if(f.lipMax  !== null && (a.l == null || a.l > f.lipMax))  return false;
+  if(f.fibMin  !== null && (a.f == null || a.f < f.fibMin))  return false;
+  if(f.fibMax  !== null && (a.f == null || a.f > f.fibMax))  return false;
+  return true;
+}
+
+function setCiqualSort(key){
+  if(_ciqualSortKey === key){
+    _ciqualSortDir = _ciqualSortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    _ciqualSortKey = key;
+    _ciqualSortDir = key === 'nom' ? 'asc' : 'desc';
+  }
+  _ciqualPage = 50;
+  renderCiqualExplorer();
+}
+
+function resetCiqualFilters(){
+  ['ciqualFilterNom','ciqualKcalMin','ciqualKcalMax','ciqualProtMin','ciqualProtMax',
+   'ciqualGlucMin','ciqualGlucMax','ciqualLipMin','ciqualLipMax','ciqualFibMin','ciqualFibMax']
+  .forEach(function(id){ document.getElementById(id).value = ''; });
+  _ciqualPage = 50;
+  renderCiqualExplorer();
+}
+
+function ciqualExplorerLoadMore(){
+  _ciqualPage += 50;
+  renderCiqualExplorer();
+}
+
+function renderCiqualExplorer(){
+  if(!CIQUAL.length){
+    document.getElementById('ciqualExplorerCount').textContent = 'Base CIQUAL non chargée.';
+    document.getElementById('ciqualExplorerResults').innerHTML = '';
+    return;
+  }
+  const f = getCiqualFilters();
+  const hasFilter = f.nom || [f.kcalMin,f.kcalMax,f.protMin,f.protMax,f.glucMin,f.glucMax,f.lipMin,f.lipMax,f.fibMin,f.fibMax].some(v=>v!==null);
+
+  // Si aucun filtre, ne rien afficher (évite de lister 3264 lignes)
+  if(!hasFilter){
+    document.getElementById('ciqualExplorerCount').textContent = 'Renseignez au moins un filtre pour afficher les résultats.';
+    document.getElementById('ciqualExplorerResults').innerHTML = '';
+    document.getElementById('ciqualExplorerMore').style.display = 'none';
+    return;
+  }
+
+  let results = CIQUAL.filter(function(a){ return ciqualPassFilter(a, f); });
+
+  // Tri
+  results.sort(function(a, b){
+    if(_ciqualSortKey === 'nom') return _ciqualSortDir === 'asc' ? a.n.localeCompare(b.n,'fr') : b.n.localeCompare(a.n,'fr');
+    const va = a[_ciqualSortKey] != null ? a[_ciqualSortKey] : (_ciqualSortDir==='desc'?-Infinity:Infinity);
+    const vb = b[_ciqualSortKey] != null ? b[_ciqualSortKey] : (_ciqualSortDir==='desc'?-Infinity:Infinity);
+    return _ciqualSortDir === 'desc' ? vb - va : va - vb;
+  });
+
+  const total = results.length;
+  const shown = results.slice(0, _ciqualPage);
+
+  // Mise à jour boutons tri
+  ['nom','k','p','g','l','f'].forEach(function(k){
+    const btn = document.getElementById('csort-'+k);
+    if(!btn) return;
+    const active = _ciqualSortKey === k;
+    btn.style.opacity = active ? '1' : '0.5';
+    btn.style.fontWeight = active ? '700' : '400';
+    const arrow = active ? (_ciqualSortDir === 'desc' ? ' ↓' : ' ↑') : '';
+    const labels = {nom:'Nom',k:'Kcal',p:'Prot',g:'Gluc',l:'Lip',f:'Fibres'};
+    btn.textContent = labels[k] + arrow;
+  });
+
+  document.getElementById('ciqualExplorerCount').textContent =
+    total === 0 ? 'Aucun aliment ne correspond.' : total.toLocaleString('fr-FR') + ' aliment' + (total>1?'s':'') + ' · ' + Math.min(shown.length, total) + ' affichés';
+
+  const macroTag = function(v, color){ return v != null ? '<span style="font-family:\'Space Mono\',monospace;font-size:11px;color:'+color+'">'+v+'g</span>' : '<span style="color:rgba(255,255,255,0.15);font-size:11px">—</span>'; };
+
+  var _ciqualShown = shown; // référence pour addRefFromCiqual par index
+  window._ciqualShown = shown;
+
+  document.getElementById('ciqualExplorerResults').innerHTML = shown.map(function(a, idx){
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);flex-wrap:wrap">'
+      +'<div style="flex:1;min-width:180px;font-size:13px;color:rgba(255,255,255,0.8)">'+a.n+'</div>'
+      +'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
+      +'<span style="font-family:\'Space Mono\',monospace;font-size:12px;color:#f97316;min-width:55px;text-align:right">'+a.k+' kcal</span>'
+      +'<div style="display:flex;gap:8px;align-items:center">'
+      +'<span style="font-size:9px;color:rgba(255,255,255,0.2)">P</span>'+macroTag(a.p,'#f97316')
+      +'<span style="font-size:9px;color:rgba(255,255,255,0.2)">G</span>'+macroTag(a.g,'#38bdf8')
+      +'<span style="font-size:9px;color:rgba(255,255,255,0.2)">L</span>'+macroTag(a.l,'#a78bfa')
+      +'<span style="font-size:9px;color:rgba(255,255,255,0.2)">F</span>'+macroTag(a.f,'#4ade80')
+      +'</div>'
+      +'<button class="btn btn-secondary" style="font-size:10px;padding:3px 10px;white-space:nowrap" onclick="addRefFromCiqual('+idx+', this)" title="Ajouter à mes références">+ Ref</button>'
+      +'</div></div>';
+  }).join('');
+
+  document.getElementById('ciqualExplorerMore').style.display = (total > _ciqualPage) ? 'block' : 'none';
+}
+
+function addRefFromCiqual(idx, btn){
+  const a = window._ciqualShown && window._ciqualShown[idx];
+  if(!a) return;
+  // Vérifie si déjà dans les refs
+  if(refs.find(function(r){ return r.nom === a.n; })){
+    alert('"'+a.n+'" est déjà dans vos références.');
+    return;
+  }
+  const entry = { id: refNextId++, nom: a.n, kcal100: a.k };
+  if(a.p != null) entry.p = a.p;
+  if(a.g != null) entry.g = a.g;
+  if(a.l != null) entry.l = a.l;
+  if(a.f != null) entry.f = a.f;
+  refs.push(entry);
+  renderRefs(); saveData();
+  if(btn){ btn.textContent = '✓'; btn.style.color = '#22c55e'; setTimeout(function(){ btn.textContent = '+ Ref'; btn.style.color = ''; }, 1500); }
+}
 
 // Chargement CIQUAL depuis fichier externe, puis init
 var CIQUAL = [];
