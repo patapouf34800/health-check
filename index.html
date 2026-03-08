@@ -1380,7 +1380,7 @@ function renderChartMain(s){
     const mouseX=e.clientX-rect.left;
     const area=chart.chartArea;
     if(mouseX<area.left||mouseX>area.right){crosshair.style.display='none';tooltip.style.display='none';return;}
-    const step=(area.right-area.left)/(days.length-1);
+    const step=days.length>1?(area.right-area.left)/(days.length-1):(area.right-area.left);
     const idx=Math.max(0,Math.min(days.length-1,Math.round((mouseX-area.left)/step)));
     const snapX=area.left+idx*step;
     crosshair.style.display='block';
@@ -1489,7 +1489,7 @@ function renderChartPoids(s){
     const mouseX=e.clientX-rect.left;
     const area=chart.chartArea;
     if(mouseX<area.left||mouseX>area.right){crosshair.style.display='none';tooltip.style.display='none';return;}
-    const step=(area.right-area.left)/(totalPoints-1);
+    const step=totalPoints>1?(area.right-area.left)/(totalPoints-1):(area.right-area.left);
     const idx=Math.max(0,Math.min(totalPoints-1,Math.round((mouseX-area.left)/step)));
     const snapX=area.left+idx*step;
     crosshair.style.display='block';
@@ -1498,7 +1498,7 @@ function renderChartPoids(s){
     crosshair.style.height=(area.bottom-area.top)+'px';
     const label=allL[idx];
     const theorique=idx<s.poidsHistory.length?s.poidsHistory[idx]:(idx<histL.length?null:s.projections[idx-histL.length]);
-    const pesee=pesees.find(p=>p.label===label);
+    const pesee=pesees.find(p=>p.date===allDates[idx]);
     const isProj=idx>=histL.length;
     let label2=isProj?(label+' (prev)'):label;
     let html='<div style="color:#818cf8;font-weight:700;margin-bottom:5px">'+label+'</div>';
@@ -1621,7 +1621,7 @@ function clearAllRefs(){
   if(!refs.length)return;
   if(!confirm('Supprimer tous les aliments de référence ?'))return;
   refs=[];
-  calcItems=calcItems.filter(i=>false);
+  calcItems=[];
   refNextId=100;
   renderRefs(); renderCalcSelect(); renderCalcItems(); saveData();
 }
@@ -1660,7 +1660,7 @@ function addRef(){
 function deleteRef(id){
   refs=refs.filter(r=>r.id!==id);
   calcItems=calcItems.filter(i=>i.refId!==id);
-  renderRefs(); renderCalcSelect(); renderCalcItems();
+  renderRefs(); renderCalcSelect(); renderCalcItems(); saveData();
 }
 
 /* ── CALCULATEUR ── */
@@ -2027,7 +2027,7 @@ function renderCorrelations(){
 
   const rawSerie = allDates.map(function(date){
     const d = dayMap[date];
-    if(metric === 'deficit') return d ? (d.deficit != null ? d.deficit : null) : null;
+    if(metric === 'deficit') return d ? (d.objectif - d.calories) : null;
     if(metric === 'calories') return d ? (d.calories || null) : null;
     if(metric === 'poids') return peseeMap[date] != null ? peseeMap[date] : null;
     if(metric === 'velo_distance') return veloMap[date] ? veloMap[date].dist : null;
@@ -2498,9 +2498,9 @@ function genPdfBilan(){
     doc.setFillColor(249,115,22); doc.rect(14,y,pageW-28,7,'F');
     doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255);
     doc.text('ALIMENTATION', 18, y+5); y+=11;
-    const totalDef = periodeDays.reduce((s,d)=>s+(d.deficit||0),0);
+    const totalDef = periodeDays.reduce((s,d)=>s+(d.objectif-d.calories),0);
     const moyKcal = Math.round(periodeDays.reduce((s,d)=>s+d.calories,0)/periodeDays.length);
-    const joursDef = periodeDays.filter(d=>(d.deficit||0)>0).length;
+    const joursDef = periodeDays.filter(d=>(d.objectif-d.calories)>0).length;
     const bw = (pageW-28-12)/3;
     kpiBox('Déficit total', Math.round(totalDef), 'kcal', totalDef>0?'ok':'danger', 14, bw, y);
     kpiBox('Moy. quotidienne', moyKcal, 'kcal/j', 'accent', 14+bw+6, bw, y);
@@ -2949,7 +2949,7 @@ function exportBilans(){
 
 function deleteBilan(id){
   if(!confirm('Supprimer ce bilan ?')) return;
-  bilans = bilans.filter(b => b.id !== id);
+  bilans = bilans.filter(b => String(b.id) !== String(id));
   renderBilans(); renderAllSanteSections(); closeBilanDetail(); saveData();
 }
 
@@ -2958,7 +2958,7 @@ function closeBilanDetail(){
 }
 
 function showBilanDetail(id){
-  const b = bilans.find(x => x.id === id); if(!b) return;
+  const b = bilans.find(x => String(x.id) === String(id)); if(!b) return;
   const date = new Date(b.date).toLocaleDateString('fr-FR', {day:'2-digit', month:'long', year:'numeric'});
   document.getElementById('bilanDetailTitle').textContent = 'Bilan du ' + date + ' — ' + b.laboratoire;
 
@@ -3151,6 +3151,10 @@ function renderBilanHebdo(){
   const today = new Date(); today.setHours(0,0,0,0);
   const todayStr = today.toISOString().split('T')[0];
 
+  // Reset badge — sera remis à 'block' seulement si conditions remplies
+  const badge = document.getElementById('bilanHebdoDimanche');
+  if(badge) badge.style.display = 'none';
+
   const { samedi, vendredi } = getBilanWeekRange(_bilanHebdoOffset);
   const samStr = samedi.toISOString().split('T')[0];
   const venStr = vendredi.toISOString().split('T')[0];
@@ -3202,8 +3206,7 @@ function renderBilanHebdo(){
     subtitle.textContent = n + '/7 jours renseignés' + (isComplete ? ' · semaine complète' : ' · en cours');
   }
 
-  // Badge fin de semaine
-  const badge = document.getElementById('bilanHebdoDimanche');
+  // Badge fin de semaine — déjà réinitialisé en début de fonction
   badge.style.display = (isComplete && n >= 5) ? 'block' : 'none';
 
   // Moyennes (uniquement sur jours avec données)
@@ -3550,8 +3553,8 @@ function nutriSort(key){
 function renderNutriDetail(d){
   window._nutriCurrentDay = d;
   const c = d.cibles || getNutriCibles();
-  const total = (d.p||0) + (d.g||0) + (d.l||0) + (d.f||0);
-  function pctOfTotal(v){ return total > 0 ? Math.round((v||0)/total*100) : 0; }
+  const total = (d.p||0)*4 + (d.g||0)*4 + (d.l||0)*9; // kcal réels pour répartition
+  function pctOfTotal(v, factor){ return total > 0 ? Math.round((v||0)*factor/total*100) : 0; }
 
   // Couleur et % selon le type de cible
   function statusProt(v){
@@ -3688,7 +3691,7 @@ function renderNutriDetail(d){
   document.getElementById('nutriDayDetail').innerHTML =
     '<div class="chart-title">'+d.label+' — Composition</div>'
     +'<div class="kpi-grid" style="margin-bottom:16px">'+protCard+glucCard+lipCard+fibCard+'</div>'
-    +'<p style="font-size:11px;color:rgba(255,255,255,0.25)">Répartition : '+pctOfTotal(d.p)+'% prot · '+pctOfTotal(d.g)+'% gluc · '+pctOfTotal(d.l)+'% lip · Calories : '+d.calories.toLocaleString('fr-FR')+' kcal</p>'
+    +'<p style="font-size:11px;color:rgba(255,255,255,0.25)">Répartition kcal : '+pctOfTotal(d.p,4)+'% prot · '+pctOfTotal(d.g,4)+'% gluc · '+pctOfTotal(d.l,9)+'% lip · Total : '+d.calories.toLocaleString('fr-FR')+' kcal</p>'
     + itemsHtml;
 }
 
@@ -3725,7 +3728,7 @@ function autoFillCalcDate(){
   const di=document.getElementById('calcDate');
   if(di.value)return;
   // Restore saved date if available
-  if(window._savedCalcDate){ di.value=window._savedCalcDate; window._savedCalcDate=null; return; }
+  if(window._savedCalcDate){ di.value=window._savedCalcDate; return; }
   if(days.length===0){di.value=new Date().toISOString().split('T')[0];return;}
   const last=new Date(days[days.length-1].date); last.setDate(last.getDate()+1);
   di.value=last.toISOString().split('T')[0];
@@ -3741,7 +3744,9 @@ function addEntry(){
   const existing=days.findIndex(d=>d.date===dateVal);
   if(existing>=0){days[existing].calories=calVal;if(noteVal) days[existing].note=noteVal;}
   else{
-    days.push({date:dateVal,label,calories:calVal,objectif:getObjectif(),note:noteVal||undefined});
+    const newDay={date:dateVal,label,calories:calVal,objectif:getObjectif(),note:noteVal||undefined};
+    newDay.cibles=getNutriCibles();
+    days.push(newDay);
     days.sort((a,b)=>a.date.localeCompare(b.date));
   }
   document.getElementById('newCal').value='';
@@ -3828,7 +3833,7 @@ function renderPeseeList(){
     }
     return '<div class="day-row">'+
       '<span class="day-date">'+p.label+'</span>'+
-      '<div class="day-bar-wrap"><div class="day-bar" style="width:'+(Math.min(100,(p.val/Math.max(...pesees.map(x=>x.val))*100)).toFixed(1))+'%;background:#22c55e"></div></div>'+
+      '<div class="day-bar-wrap"><div class="day-bar" style="width:'+(pesees.length>0?Math.min(100,(p.val/Math.max(...pesees.map(x=>x.val))*100)).toFixed(1):0)+'%;background:#22c55e"></div></div>'+
       '<span class="pesee-blur" style="font-family:monospace;font-size:13px;min-width:70px;text-align:right;color:#22c55e">'+p.val.toFixed(1)+' kg</span>'+
       ecartHtml+
       '<button class="day-del" onclick="deletePesee('+i+')">×</button>'+
@@ -3928,7 +3933,7 @@ function calcTDEE(){
         <div style="font-size:13px;color:rgba(255,255,255,0.6)">${sc.poids_sem > 0 ? '+' : ''}${sc.poids_sem} kg/sem</div>
         <div style="font-size:12px;color:rgba(255,255,255,0.3)">${perdMois > 0 ? '+' : ''}${perdMois} kg/mois → ${poidsResultat} kg</div>
       </div>
-      <button class="btn btn-secondary" onclick="applyObjectif(${sc.kcal})" style="font-size:11px;padding:6px 12px;white-space:nowrap">Utiliser comme objectif</button>
+      <button class="btn btn-secondary" onclick="applyObjectif(${sc.kcal}, this)" style="font-size:11px;padding:6px 12px;white-space:nowrap">Utiliser comme objectif</button>
     </div>`;
   }).join('');
 
@@ -3943,11 +3948,11 @@ function calcTDEE(){
     <div>⚡ <strong style="color:rgba(255,255,255,0.7)">TDEE</strong> = ${mb} × ${activite} = <strong style="color:#f97316">${tdee} kcal/j</strong></div>`;
 }
 
-function applyObjectif(kcal){
+function applyObjectif(kcal, btn){
   document.getElementById('objectifInput').value = kcal;
   refresh();
   // Flash confirmation
-  const btn = event.target;
+  if(!btn) return;
   const orig = btn.textContent;
   btn.textContent = '✓ Appliqué !';
   btn.style.color = '#22c55e';
