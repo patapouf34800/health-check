@@ -4082,8 +4082,8 @@ function applyObjectif(kcal){
 
 
 /* ── EXPLORATEUR CIQUAL ── */
-var _ciqualSortKey = 'p';
-var _ciqualSortDir = 'desc';
+var _ciqualSortKey = 'nom';
+var _ciqualSortDir = 'asc';
 var _ciqualPage = 50;
 
 function getCiqualFilters(){
@@ -4164,8 +4164,22 @@ function renderCiqualExplorer(){
 
   let results = CIQUAL.filter(function(a){ return ciqualPassFilter(a, f); });
 
-  // Tri
+  // Tri A+C : si recherche nom active → pertinence + rang r en primaire, critère choisi en secondaire
+  //           sinon → critère choisi seul
   results.sort(function(a, b){
+    if(f.nom){
+      // Score pertinence nom (0=exact, 1=commence par, 2=contient)
+      var an = a.n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      var bn = b.n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      var aMatch = an === f.nom ? 0 : an.startsWith(f.nom) ? 1 : 2;
+      var bMatch = bn === f.nom ? 0 : bn.startsWith(f.nom) ? 1 : 2;
+      // Score combiné : pertinence × 10 + rang CIQUAL (brut=0 > simple=1 > céréales=2)
+      var aScore = aMatch * 10 + (a.r || 0);
+      var bScore = bMatch * 10 + (b.r || 0);
+      if(aScore !== bScore) return aScore - bScore;
+      // À égalité de pertinence → critère de tri choisi en secondaire
+    }
+    // Critère de tri principal (ou secondaire si nom actif)
     if(_ciqualSortKey === 'nom') return _ciqualSortDir === 'asc' ? a.n.localeCompare(b.n,'fr') : b.n.localeCompare(a.n,'fr');
     const va = a[_ciqualSortKey] != null ? a[_ciqualSortKey] : (_ciqualSortDir==='desc'?-Infinity:Infinity);
     const vb = b[_ciqualSortKey] != null ? b[_ciqualSortKey] : (_ciqualSortDir==='desc'?-Infinity:Infinity);
