@@ -1880,6 +1880,7 @@ let recetteNextId = 1;
 var _recetteSelectedItem = null;
 var _recetteIngItems = []; // [{nom, kcal100, grams, p, g, l, f}]
 var _recetteSuggIdx = -1;
+var _recetteEditId = null; // id de la recette en cours d'édition, null si nouvelle
 
 function toggleRecetteManuel(){
   const panel = document.getElementById('recetteManuelPanel');
@@ -2093,15 +2094,28 @@ function saveRecette(){
   const l100 = totalL!=null ? Math.round(totalL/totalGrams*100*10)/10 : null;
   const f100 = totalF!=null ? Math.round(totalF/totalGrams*100*10)/10 : null;
 
-  // Sauvegarde recette
-  const recette = {
-    id: recetteNextId++, nom: nom,
-    ingredients: JSON.parse(JSON.stringify(_recetteIngItems)),
-    totalGrams: Math.round(totalGrams), totalKcal: Math.round(totalKcal),
-    kcal100: k100, p: p100, g: g100, l: l100, f: f100,
-    date: new Date().toISOString().split('T')[0]
-  };
-  recettes.push(recette);
+  // Mise à jour ou création dans recettes
+  const existingRecetteIdx = _recetteEditId !== null
+    ? recettes.findIndex(function(r){ return r.id===_recetteEditId; })
+    : recettes.findIndex(function(r){ return r.nom===nom; });
+  if(existingRecetteIdx >= 0){
+    // Mise à jour en conservant l'id existant
+    recettes[existingRecetteIdx] = {
+      id: recettes[existingRecetteIdx].id, nom: nom,
+      ingredients: JSON.parse(JSON.stringify(_recetteIngItems)),
+      totalGrams: Math.round(totalGrams), totalKcal: Math.round(totalKcal),
+      kcal100: k100, p: p100, g: g100, l: l100, f: f100,
+      date: new Date().toISOString().split('T')[0]
+    };
+  } else {
+    recettes.push({
+      id: recetteNextId++, nom: nom,
+      ingredients: JSON.parse(JSON.stringify(_recetteIngItems)),
+      totalGrams: Math.round(totalGrams), totalKcal: Math.round(totalKcal),
+      kcal100: k100, p: p100, g: g100, l: l100, f: f100,
+      date: new Date().toISOString().split('T')[0]
+    });
+  }
 
   // Ajout / mise à jour dans refs
   const refNom = '🍲 ' + nom;
@@ -2110,9 +2124,12 @@ function saveRecette(){
   if(g100!=null) refEntry.g = g100;
   if(l100!=null) refEntry.l = l100;
   if(f100!=null) refEntry.f = f100;
-  const existingIdx = refs.findIndex(function(r){ return r.nom===refNom; });
-  if(existingIdx>=0) refs[existingIdx] = refEntry;
+  const existingRefIdx = refs.findIndex(function(r){ return r.nom===refNom; });
+  if(existingRefIdx>=0) refs[existingRefIdx] = refEntry;
   else refs.push(refEntry);
+
+  // Vider le formulaire après enregistrement
+  clearRecette();
 
   renderRecettes(); renderRefs(); renderCalcSelect(); saveData();
 
@@ -2126,6 +2143,7 @@ function saveRecette(){
 function clearRecette(){
   _recetteIngItems = [];
   _recetteSelectedItem = null;
+  _recetteEditId = null;
   document.getElementById('recetteNom').value = '';
   document.getElementById('recetteIngSearch').value = '';
   document.getElementById('recetteIngSelected').textContent = '';
@@ -2140,6 +2158,7 @@ function loadRecetteForEdit(id){
   const rec = recettes.find(function(r){ return r.id===id; });
   if(!rec) return;
   _recetteIngItems = JSON.parse(JSON.stringify(rec.ingredients));
+  _recetteEditId = rec.id;
   document.getElementById('recetteNom').value = rec.nom;
   renderRecetteIngList();
   renderRecetteTotal();
