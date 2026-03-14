@@ -4058,27 +4058,38 @@ function renderBilanHebdo(){
       var MAX_KCAL = maxKcalPerPortion || 300;
       var EXCLUDE = ['alcool','bière','vin ','whisky','liqueur','rhum','vodka','sirop de'];
 
-      // Plancher calorique : en dessous de 50 kcal/100g → condiment/extrait/poudre, inutilisable
+      // Herbes, épices, condiments : jamais consommés en dose correctrice
+      var EXCLUDE_HERBES = [
+        'thym','sauge','romarin','origan','basilic','coriandre','persil','ciboulette',
+        'estragon','menthe','laurier','marjolaine','sarriette','aneth','fenouil',
+        'cumin','curcuma','paprika','curry','cannelle','muscade','clou de girofle',
+        'poivre','piment','gingembre','cardamome','fenugrec','safran','vanille',
+        'épice','herbe','aromate','condiment','moutarde','câpre','cornichon',
+        'levure','bouillon','extrait','poudre de','fécule','amidon','gélatine',
+        'agar','carraghénane','gomme de','vinaigre','sauce soja','nuoc'
+      ];
+
+      // Plancher calorique : en dessous de 50 kcal/100g → extrait/bouillon inutilisable
       var KCAL_MIN = 50;
 
       var scored = CIQUAL
         .filter(function(a){
           if(a[macroKey] == null || a[macroKey] <= 0 || a.k <= 0) return false;
-          if(a.k < KCAL_MIN) return false; // éliminer extraits, bouillons, gélatines
-          if((a.r || 0) >= 3) return false; // exclure plats préparés/industriels
+          if(a.k < KCAL_MIN) return false;
+          if((a.r || 0) >= 3) return false;
           var nl = a.n.toLowerCase();
           if(EXCLUDE.some(function(e){ return nl.indexOf(e) !== -1; })) return false;
+          if(EXCLUDE_HERBES.some(function(e){ return nl.indexOf(e) !== -1; })) return false;
           return true;
         })
         .map(function(a){
           // Score brut : ratio macro/kcal
           var ratioScore = a[macroKey] / a.k;
 
-          // Bonus naturalité : r=0 (aliment brut) → ×1.0, r=1 (simple) → ×0.85, r=2 (transformé) → ×0.65
+          // Bonus naturalité : r=0 brut → ×1.0, r=1 simple → ×0.85, r=2 transformé → ×0.65
           var naturBonus = a.r === 0 ? 1.0 : a.r === 1 ? 0.85 : 0.65;
 
-          // Bonus densité calorique raisonnable : on favorise 80–350 kcal/100g
-          // En dessous ou au-dessus → pénalité progressive
+          // Bonus densité calorique raisonnable : favorise 80–350 kcal/100g
           var densBonus = (a.k >= 80 && a.k <= 350) ? 1.0 : (a.k < 80 ? a.k / 80 : 350 / a.k);
 
           var score = ratioScore * naturBonus * densBonus;
