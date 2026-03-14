@@ -843,6 +843,13 @@
   <!-- À SURVEILLER -->
   <div id="sante_surveiller" class="panel">
     <div class="chart-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+        <div class="chart-title" style="margin-bottom:0">🏥 Mes conditions chroniques</div>
+        <span style="font-size:11px;color:rgba(255,255,255,0.2)">Les marqueurs concernés passent en "connu" dans À surveiller</span>
+      </div>
+      <div id="conditionsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px"></div>
+    </div>
+    <div class="chart-card">
       <div class="chart-title">⚠️ À surveiller</div>
       <div id="sante_surveiller_content"><p class="empty-msg">Aucun bilan importé.</p></div>
     </div>
@@ -1400,7 +1407,7 @@ function saveData(){
     taille: tdeeTailleEl ? parseInt(tdeeTailleEl.value)||175 : 175,
     activite: tdeeActiviteEl ? parseFloat(tdeeActiviteEl.value)||1.2 : 1.2
   };
-  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, activePeriod, calcDate: calcDateVal, poids: getPoids(), objectif: getObjectif(), bilans, bilanUnites: window._bilanUnites||{}, tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount };
+  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, activePeriod, calcDate: calcDateVal, poids: getPoids(), objectif: getObjectif(), bilans, bilanUnites: window._bilanUnites||{}, tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount, conditionsActives: _conditionsActives };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     localStorage.setItem(STORAGE_KEY+'_calc', JSON.stringify({calcItems, calcDate: calcDateVal}));
@@ -1427,6 +1434,7 @@ function loadData(){
     if(data.weeklySnapshots) window._weeklySnapshots = data.weeklySnapshots;
     else if(data.lastWeekBilanSnapshot) window._weeklySnapshots = [data.lastWeekBilanSnapshot]; // migration ancien format
     if(data.usageCount) usageCount = data.usageCount;
+    if(data.conditionsActives) _conditionsActives = data.conditionsActives;
     if(data.calcDate) window._savedCalcDate = data.calcDate;
     if(data.recettes){ recettes = data.recettes; recetteNextId = data.recetteNextId || recettes.length+1; }
     // Bug 3 fix : utiliser _calc uniquement si la clé principale n'a pas de calcItems
@@ -1462,7 +1470,7 @@ function exportData(){
   };
   const calcDateEl2 = document.getElementById('calcDate');
   const calcDateVal2 = (calcDateEl2 && calcDateEl2.value) ? calcDateEl2.value : (window._savedCalcDate || '');
-  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, calcDate: calcDateVal2, activePeriod, bilans, bilanUnites: window._bilanUnites||{}, poids: getPoids(), objectif: getObjectif(), tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount, exportDate: new Date().toISOString() };
+  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, calcDate: calcDateVal2, activePeriod, bilans, bilanUnites: window._bilanUnites||{}, poids: getPoids(), objectif: getObjectif(), tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount, conditionsActives: _conditionsActives, exportDate: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1518,6 +1526,7 @@ function importData(event){
       if(data.weeklySnapshots) window._weeklySnapshots = data.weeklySnapshots;
       else if(data.lastWeekBilanSnapshot) window._weeklySnapshots = [data.lastWeekBilanSnapshot];
       if(data.usageCount) usageCount = data.usageCount;
+      if(data.conditionsActives) _conditionsActives = data.conditionsActives;
       if(data.recettes){ recettes = data.recettes; recetteNextId = data.recetteNextId || recettes.length+1; }
       // Calcul auto ratios
       bilans.forEach(b => {
@@ -3461,18 +3470,142 @@ function renderAllSanteSections(){
   renderSurveiller();
 }
 
+/* ── CONDITIONS CHRONIQUES ── */
+var _conditionsActives = []; // ['beta_thalassemie', ...]
+
+const CONDITIONS_CHRONIQUES = [
+  {
+    id: 'beta_thalassemie',
+    label: 'Bêta-thalassémie (trait ou mineure)',
+    description: 'Anomalie génétique de l\'hémoglobine entraînant des globules rouges plus petits et moins chargés en hémoglobine.',
+    marqueurs: ['hematies','hemoglobine','hematocrite','MCV','MCH','MCHC','fer','ferritine'],
+    note: 'Valeurs abaissées attendues — non pathologiques dans ce contexte.'
+  },
+  {
+    id: 'anemie_ferriprive',
+    label: 'Anémie ferriprive connue',
+    description: 'Manque de fer entraînant une production insuffisante d\'hémoglobine.',
+    marqueurs: ['hemoglobine','hematocrite','MCV','MCH','MCHC','fer','ferritine'],
+    note: 'Valeurs basses attendues — suivre l\'évolution sous traitement.'
+  },
+  {
+    id: 'hypothyroidie',
+    label: 'Hypothyroïdie traitée',
+    description: 'Glande thyroïde sous-active, sous hormonothérapie substitutive.',
+    marqueurs: ['TSH'],
+    note: 'TSH ajustée selon le traitement en cours — interpréter avec l\'endocrinologue.'
+  },
+  {
+    id: 'hypercholesterolemie_familiale',
+    label: 'Hypercholestérolémie familiale',
+    description: 'Élévation génétique du LDL indépendante du mode de vie.',
+    marqueurs: ['cholesterol_total','LDL','ratio_CHOL_HDL'],
+    note: 'Valeurs élevées d\'origine génétique — suivi lipidique adapté.'
+  },
+  {
+    id: 'diabete_type2',
+    label: 'Diabète de type 2 traité',
+    description: 'Résistance à l\'insuline avec glycémie sous contrôle médicamenteux.',
+    marqueurs: ['glucose','HbA1c'],
+    note: 'Valeurs à interpréter selon les cibles thérapeutiques individuelles.'
+  },
+  {
+    id: 'insuffisance_renale_chronique',
+    label: 'Insuffisance rénale chronique',
+    description: 'Réduction progressive de la filtration rénale.',
+    marqueurs: ['creatinine','eGFR_CKD_EPI','potassium'],
+    note: 'Valeurs attendues hors normes standard — suivi néphrologue.'
+  },
+  {
+    id: 'polyglobulie',
+    label: 'Polyglobulie / Érythrocytose',
+    description: 'Excès de globules rouges, constitutionnel ou secondaire.',
+    marqueurs: ['hematies','hemoglobine','hematocrite'],
+    note: 'Valeurs élevées connues et surveillées.'
+  },
+  {
+    id: 'thrombopenie_chronique',
+    label: 'Thrombopénie chronique',
+    description: 'Taux de plaquettes chroniquement bas, stabilisé.',
+    marqueurs: ['plaquettes'],
+    note: 'Taux bas attendu — surveiller uniquement les variations.'
+  },
+  {
+    id: 'hepatite_chronique',
+    label: 'Hépatite chronique / Stéatose',
+    description: 'Atteinte hépatique chronique avec enzymes hépatiques modérément élevées.',
+    marqueurs: ['GOT_AST','GPT_ALT','gamma_GT'],
+    note: 'Élévation enzymatique attendue — à surveiller en tendance.'
+  },
+  {
+    id: 'gilbert',
+    label: 'Syndrome de Gilbert',
+    description: 'Anomalie bénigne du métabolisme de la bilirubine.',
+    marqueurs: ['GOT_AST','GPT_ALT'],
+    note: 'Légère élévation enzymatique bénigne et constitutionnelle.'
+  },
+];
+
+function getMarqueursConnus(){
+  // Retourne un Set des clés de marqueurs couverts par les conditions actives
+  const connus = new Set();
+  _conditionsActives.forEach(function(id){
+    const c = CONDITIONS_CHRONIQUES.find(function(x){ return x.id === id; });
+    if(c) c.marqueurs.forEach(function(m){ connus.add(m); });
+  });
+  return connus;
+}
+
+function getNoteCondition(key){
+  // Retourne la note de la condition qui couvre ce marqueur
+  for(var i = 0; i < _conditionsActives.length; i++){
+    const c = CONDITIONS_CHRONIQUES.find(function(x){ return x.id === _conditionsActives[i]; });
+    if(c && c.marqueurs.includes(key)) return '🏥 ' + c.label + ' — ' + c.note;
+  }
+  return null;
+}
+
+function toggleCondition(id){
+  const idx = _conditionsActives.indexOf(id);
+  if(idx >= 0) _conditionsActives.splice(idx, 1);
+  else _conditionsActives.push(id);
+  saveData();
+  renderConditionsGrid();
+  renderSurveiller();
+}
+
+function renderConditionsGrid(){
+  const el = document.getElementById('conditionsGrid'); if(!el) return;
+  el.innerHTML = CONDITIONS_CHRONIQUES.map(function(c){
+    const active = _conditionsActives.includes(c.id);
+    const borderCol = active ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.06)';
+    const bg = active ? 'rgba(249,115,22,0.06)' : 'rgba(255,255,255,0.02)';
+    return '<div style="background:'+bg+';border:1px solid '+borderCol+';border-radius:10px;padding:10px 14px;cursor:pointer;transition:all .2s" onclick="toggleCondition(\''+c.id+'\')">'
+      +'<div style="display:flex;align-items:flex-start;gap:8px">'
+      +'<input type="checkbox" '+(active?'checked':'')+' onclick="event.stopPropagation();toggleCondition(\''+c.id+'\')" style="margin-top:2px;accent-color:#f97316;cursor:pointer;flex-shrink:0">'
+      +'<div>'
+      +'<div style="font-size:12px;font-weight:500;color:'+(active?'#f97316':'rgba(255,255,255,0.7)')+'">'+c.label+'</div>'
+      +'<div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:3px">'+c.description+'</div>'
+      +'</div></div>'
+      +'</div>';
+  }).join('');
+}
+
 function renderSurveiller(){
   const el = document.getElementById('sante_surveiller_content'); if(!el) return;
+
+  // Render conditions grid
+  renderConditionsGrid();
 
   if(!bilans.length){
     el.innerHTML = '<p class="empty-msg">Aucun bilan importé. Importez un bilan dans "🩸 Bilans sanguins".</p>';
     return;
   }
 
-  // Collecter tous les marqueurs hors norme du dernier bilan
   const lastBilan = bilans[bilans.length-1];
   const prevBilan = bilans.length > 1 ? bilans[bilans.length-2] : null;
   const date = new Date(lastBilan.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
+  const connus = getMarqueursConnus();
 
   const horsNorme = [];
   Object.entries(lastBilan.marqueurs).forEach(([categorie, marqueurs]) => {
@@ -3487,7 +3620,6 @@ function renderSurveiller(){
       const label = MARQUEUR_LABELS[key] || key.replace(/_/g,' ');
       const refStr = (m.refMin!==null?m.refMin:'') + (m.refMin!==null&&m.refMax!==null?' – ':'') + (m.refMax!==null?m.refMax:'');
 
-      // Delta vs bilan précédent
       let deltaHtml = '';
       if(prevBilan){
         let prevVal = null;
@@ -3505,8 +3637,10 @@ function renderSurveiller(){
       const sectionLabel = (function(){var r=Object.entries(SANTE_SECTIONS).find(function(e){return e[1].marqueurs.includes(key)});return r&&r[1]&&r[1].title?r[1].title:'';})();
       const info = MARQUEUR_INFO[key];
       const interp = info ? (statut==='haut' ? info.haut : info.bas) : null;
+      const estConnu = connus.has(key);
+      const noteCondition = estConnu ? getNoteCondition(key) : null;
 
-      horsNorme.push({ key, label, v, u, couleur, statut, refStr, deltaHtml, sectionLabel, note: m.note||null, info, interp });
+      horsNorme.push({ key, label, v, u, couleur, statut, refStr, deltaHtml, sectionLabel, note: m.note||null, info, interp, estConnu, noteCondition });
     });
   });
 
@@ -3519,29 +3653,44 @@ function renderSurveiller(){
     return;
   }
 
-  let html = `<div style="font-size:11px;color:rgba(255,255,255,0.25);margin-bottom:16px">Bilan du ${date} — ${horsNorme.length} marqueur(s) hors norme</div>`;
-  html += '<div style="display:flex;flex-direction:column;gap:10px">';
-  horsNorme.forEach(({key, label, v, u, couleur, statut, refStr, deltaHtml, sectionLabel, note, info, interp}) => {
+  const actifs = horsNorme.filter(function(h){ return !h.estConnu; });
+  const connus_ = horsNorme.filter(function(h){ return h.estConnu; });
+
+  function renderCard(h, dimmed){
+    const {key, label, v, u, couleur, statut, refStr, deltaHtml, sectionLabel, note, info, interp, noteCondition} = h;
+    const cardColor = dimmed ? 'rgba(255,255,255,0.35)' : couleur;
+    const borderColor = dimmed ? 'rgba(255,255,255,0.15)' : couleur;
     const badgeLabel = statut === 'haut' ? '↑ Élevé' : '↓ Bas';
     const tooltip = info ? `${info.organe}\n${info.def}` : '';
-    html += `<div class="card" style="padding:14px 18px;border-left:3px solid ${couleur}">
+    return `<div class="card" style="padding:14px 18px;border-left:3px solid ${borderColor};${dimmed?'opacity:0.65':''}">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:140px">
           <div style="font-size:10px;color:rgba(255,255,255,0.25);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">${sectionLabel}</div>
           <div class="mq-label" style="font-size:13px;color:rgba(255,255,255,0.7)" ${tooltip?`data-tooltip="${tooltip}"`:''}>${label}</div>
         </div>
         <div style="display:flex;align-items:baseline;gap:6px">
-          <span style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:${couleur}">${v}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:${cardColor}">${v}</span>
           <span style="font-size:11px;color:rgba(255,255,255,0.3)">${u}</span>
           ${deltaHtml}
         </div>
-        <span style="font-size:10px;padding:3px 10px;border-radius:10px;background:${couleur}22;color:${couleur};font-family:'Space Mono',monospace">${badgeLabel}</span>
+        <span style="font-size:10px;padding:3px 10px;border-radius:10px;background:${cardColor}22;color:${cardColor};font-family:'Space Mono',monospace">${dimmed?'✓ Connu':badgeLabel}</span>
         <span style="font-size:10px;color:rgba(255,255,255,0.2)">Réf : ${refStr} ${u}</span>
       </div>
-      ${interp?`<div style="font-size:11px;color:${couleur}bb;margin-top:10px;border-left:2px solid ${couleur}44;padding-left:10px;font-style:italic">${interp}</div>`:''}
+      ${noteCondition?`<div style="font-size:11px;color:rgba(249,115,22,0.6);margin-top:10px;border-left:2px solid rgba(249,115,22,0.3);padding-left:10px">${noteCondition}</div>`:''}
+      ${!dimmed&&interp?`<div style="font-size:11px;color:${couleur}bb;margin-top:10px;border-left:2px solid ${couleur}44;padding-left:10px;font-style:italic">${interp}</div>`:''}
       ${note?`<div style="font-size:10px;color:rgba(249,115,22,0.5);margin-top:6px;font-style:italic">ℹ️ ${note}</div>`:''}
     </div>`;
-  });
+  }
+
+  let html = `<div style="font-size:11px;color:rgba(255,255,255,0.25);margin-bottom:16px">Bilan du ${date} — ${actifs.length} alerte(s)${connus_.length?' · '+connus_.length+' connu(s)':''}</div>`;
+  html += '<div style="display:flex;flex-direction:column;gap:10px">';
+  actifs.forEach(function(h){ html += renderCard(h, false); });
+
+  if(connus_.length){
+    html += `<div style="font-size:10px;color:rgba(255,255,255,0.2);text-transform:uppercase;letter-spacing:1px;margin-top:8px;margin-bottom:4px">Hors norme mais attendu — condition chronique déclarée</div>`;
+    connus_.forEach(function(h){ html += renderCard(h, true); });
+  }
+
   html += '</div>';
   el.innerHTML = html;
 }
