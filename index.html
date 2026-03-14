@@ -1382,7 +1382,7 @@ function saveData(){
     taille: tdeeTailleEl ? parseInt(tdeeTailleEl.value)||175 : 175,
     activite: tdeeActiviteEl ? parseFloat(tdeeActiviteEl.value)||1.2 : 1.2
   };
-  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, activePeriod, calcDate: calcDateVal, poids: getPoids(), objectif: getObjectif(), bilans, bilanUnites: window._bilanUnites||{}, tensions, tdeeParams, recettes, recetteNextId, lastWeekBilanSnapshot: window._lastWeekBilanSnapshot||null };
+  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, activePeriod, calcDate: calcDateVal, poids: getPoids(), objectif: getObjectif(), bilans, bilanUnites: window._bilanUnites||{}, tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[] };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     localStorage.setItem(STORAGE_KEY+'_calc', JSON.stringify({calcItems, calcDate: calcDateVal}));
@@ -1406,7 +1406,8 @@ function loadData(){
     if(data.bilans) bilans = data.bilans;
     if(data.tensions) tensions = data.tensions;
     if(data.bilanUnites) window._bilanUnites = data.bilanUnites;
-    if(data.lastWeekBilanSnapshot) window._lastWeekBilanSnapshot = data.lastWeekBilanSnapshot;
+    if(data.weeklySnapshots) window._weeklySnapshots = data.weeklySnapshots;
+    else if(data.lastWeekBilanSnapshot) window._weeklySnapshots = [data.lastWeekBilanSnapshot]; // migration ancien format
     if(data.calcDate) window._savedCalcDate = data.calcDate;
     if(data.recettes){ recettes = data.recettes; recetteNextId = data.recetteNextId || recettes.length+1; }
     // Bug 3 fix : utiliser _calc uniquement si la clé principale n'a pas de calcItems
@@ -3733,7 +3734,6 @@ function getBilanWeekRange(offset){
 }
 
 function computeWeekSnapshot(offset){
-  // Calcule et retourne un snapshot du bilan pour la semaine à l'offset donné
   const c = getNutriCibles();
   const today = new Date(); today.setHours(0,0,0,0);
   const { samedi, vendredi, toLocalDateStr } = getBilanWeekRange(offset);
@@ -3752,78 +3752,106 @@ function computeWeekSnapshot(offset){
   if(n === 0) return null;
   function avg(key){ return parseFloat((withData.reduce(function(s,d){ return s+(d.data[key]||0);},0)/n).toFixed(1)); }
   function avgCible(key){ return parseFloat((withData.reduce(function(s,d){ return s+((d.data.cibles||c)[key]||0);},0)/n).toFixed(1)); }
+  const avgKcal = parseFloat((withData.reduce(function(s,d){ return s+(d.data.calories||0);},0)/n).toFixed(0));
+  const avgObj  = parseFloat((withData.reduce(function(s,d){ return s+(d.data.objectif||c.kcal||0);},0)/n).toFixed(0));
   return {
-    samStr, venStr, n,
+    samStr, venStr, n, avgKcal, avgObj,
     avgP: avg('p'), avgG: avg('g'), avgL: avg('l'), avgF: avg('f'),
     cProtMin: avgCible('protMin'), cLip: avgCible('lip'), cFibres: avgCible('fibres'),
     savedAt: toLocalDateStr(today)
   };
 }
 
-function maybeSnapshotLastWeek(){
-  // Sauvegarde le bilan de la semaine précédente si on est au début d'une nouvelle semaine
-  // et que le snapshot n'existe pas encore (ou date d'une semaine encore plus ancienne)
+// Tableau cumulé de snapshots (une entrée par semaine terminée)
+if(!window._weeklySnapshots) window._weeklySnapshots = [];
+
+function maybeSnapshotWeeks(){
+  // Parcourt toutes les semaines passées depuis BILAN_HEBDO_START et
+  // crée/met à jour leur snapshot si les données ont changé.
   const today = new Date(); today.setHours(0,0,0,0);
   function toLocalDateStr(d){
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   }
-  const { samedi: samCurrent } = getBilanWeekRange(0);
-  const { vendredi: venPrev } = getBilanWeekRange(-1);
-  // On snapshot si : la semaine précédente est terminée (vendredi ≤ aujourd'hui)
-  // ET le snapshot existant est absent ou plus ancien que la semaine précédente
-  if(venPrev > today) return; // semaine précédente pas encore finie
-  const snap = window._lastWeekBilanSnapshot;
-  const { samedi: samPrev } = getBilanWeekRange(-1);
-  const samPrevStr = toLocalDateStr(samPrev);
-  if(snap && snap.samStr === samPrevStr) return; // snapshot déjà à jour pour cette semaine
-  // Calculer et sauvegarder
-  const newSnap = computeWeekSnapshot(-1);
-  if(newSnap){
-    window._lastWeekBilanSnapshot = newSnap;
-    saveData();
+  var changed = false;
+  // Remonter jusqu'à 52 semaines en arrière au maximum
+  for(var off = -1; off >= -52; off--){
+    const { vendredi } = getBilanWeekRange(off);
+    if(vendredi > today) continue; // semaine pas encore terminée
+    const snap = computeWeekSnapshot(off);
+    if(!snap) continue; // pas de données pour cette semaine
+    const existing = window._weeklySnapshots.findIndex(function(s){ return s.samStr === snap.samStr; });
+    if(existing === -1){
+      window._weeklySnapshots.push(snap);
+      changed = true;
+    } else {
+      // Mettre à jour si les données ont changé (n ou moyennes différentes)
+      const old = window._weeklySnapshots[existing];
+      if(old.n !== snap.n || old.avgP !== snap.avgP || old.avgF !== snap.avgF){
+        window._weeklySnapshots[existing] = snap;
+        changed = true;
+      }
+    }
   }
+  // Trier du plus récent au plus ancien
+  window._weeklySnapshots.sort(function(a,b){ return b.samStr.localeCompare(a.samStr); });
+  if(changed) saveData();
 }
 
-function renderLastWeekSnapshotBanner(){
+function renderWeeklySnapshotHistory(){
   const container = document.getElementById('bilanHebdoLastWeekSnap');
   if(!container) return;
-  const snap = window._lastWeekBilanSnapshot;
-  if(!snap){ container.style.display='none'; return; }
-  // Formater les dates
+  const snaps = window._weeklySnapshots;
+  if(!snaps || snaps.length === 0){ container.style.display='none'; return; }
+
   function fmtDate(s){ const d=new Date(s+'T00:00:00'); return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short'}); }
-  const label = fmtDate(snap.samStr)+' → '+fmtDate(snap.venStr);
+
   function macroChip(val, cible, color, name){
     if(val==null) return '';
     const ok = cible ? val >= cible : true;
-    const statusColor = cible ? (ok ? '#22c55e' : (val >= cible*0.8 ? '#facc15' : '#ef4444')) : color;
+    const statusColor = cible ? (ok ? '#22c55e' : (val >= cible*0.8 ? '#f97316' : '#ef4444')) : color;
     const ecart = cible ? ((val-cible>=0?'+':'')+(val-cible).toFixed(1)+'g') : '';
-    return '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:60px">'
-      +'<div style="font-size:9px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:1px">'+name+'</div>'
-      +'<div style="font-family:\'Space Mono\',monospace;font-size:15px;font-weight:700;color:'+color+'">'+val+'<span style="font-size:10px">g</span></div>'
+    return '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:54px">'
+      +'<div style="font-size:9px;color:rgba(255,255,255,0.25);text-transform:uppercase;letter-spacing:1px">'+name+'</div>'
+      +'<div style="font-family:\'Space Mono\',monospace;font-size:14px;font-weight:700;color:'+color+'">'+val+'<span style="font-size:10px">g</span></div>'
       +(ecart?'<div style="font-size:10px;color:'+statusColor+'">'+ecart+'</div>':'')
       +'</div>';
   }
+
+  function snapCard(snap, idx){
+    const label = fmtDate(snap.samStr)+' → '+fmtDate(snap.venStr);
+    const deficit = snap.avgObj ? (snap.avgObj - snap.avgKcal) : null;
+    const defStr = deficit !== null ? (deficit > 0 ? '−'+Math.round(deficit)+' kcal/j' : '+'+Math.round(Math.abs(deficit))+' kcal/j') : '';
+    const defColor = deficit !== null ? (deficit > 0 ? '#22c55e' : '#ef4444') : '';
+    // Score couleur bordure : rouge si P ou F manque, vert si tout ok
+    const allOk = snap.avgP >= snap.cProtMin && snap.avgF >= snap.cFibres;
+    const borderColor = allOk ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.07)';
+    return '<div style="background:rgba(255,255,255,0.02);border:1px solid '+borderColor+';border-radius:12px;padding:14px 18px;margin-bottom:8px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">'
+      +'<div>'
+      +'<div style="font-family:\'Space Mono\',monospace;font-size:11px;color:rgba(255,255,255,0.55)">'+label+'</div>'
+      +'<div style="font-size:10px;color:rgba(255,255,255,0.25);margin-top:2px">'+snap.n+'/7 jours'+(snap.avgKcal?' · moy. '+snap.avgKcal+' kcal':'')+(defStr?' · <span style="color:'+defColor+'">'+defStr+'</span>':'')+'</div>'
+      +'</div>'
+      +'<button class="period-btn" onclick="_bilanHebdoOffset='+(-idx-1)+';renderBilanHebdo()" style="font-size:10px;padding:4px 10px">Détail →</button>'
+      +'</div>'
+      +'<div style="display:flex;gap:20px;flex-wrap:wrap">'
+      +macroChip(snap.avgP, snap.cProtMin, '#f97316', 'Protéines')
+      +macroChip(snap.avgL, snap.cLip, '#a78bfa', 'Lipides')
+      +macroChip(snap.avgF, snap.cFibres, '#4ade80', 'Fibres')
+      +macroChip(snap.avgG, null, '#38bdf8', 'Glucides')
+      +'</div>'
+      +'</div>';
+  }
+
   container.style.display = 'block';
-  container.innerHTML = '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px 20px">'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">'
-    +'<div>'
-    +'<div style="font-size:11px;color:rgba(255,255,255,0.25);text-transform:uppercase;letter-spacing:2px;margin-bottom:3px">Bilan semaine précédente</div>'
-    +'<div style="font-family:\'Space Mono\',monospace;font-size:12px;color:rgba(255,255,255,0.5)">'+label+' · '+snap.n+'/7 jours</div>'
-    +'</div>'
-    +'<button class="period-btn" onclick="_bilanHebdoOffset=-1;renderBilanHebdo()" style="font-size:10px">Voir le détail →</button>'
-    +'</div>'
-    +'<div style="display:flex;gap:24px;flex-wrap:wrap">'
-    +macroChip(snap.avgP, snap.cProtMin, '#f97316', 'Protéines')
-    +macroChip(snap.avgL, snap.cLip, '#a78bfa', 'Lipides')
-    +macroChip(snap.avgF, snap.cFibres, '#4ade80', 'Fibres')
-    +macroChip(snap.avgG, null, '#38bdf8', 'Glucides')
-    +'</div>'
+  container.innerHTML = '<div style="margin-bottom:6px">'
+    +'<div style="font-size:9px;color:rgba(255,255,255,0.2);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px">Historique des semaines passées</div>'
+    + snaps.map(function(s,i){ return snapCard(s,i); }).join('')
     +'</div>';
 }
 
 function renderBilanHebdo(){
-  maybeSnapshotLastWeek();
-  renderLastWeekSnapshotBanner();
+  maybeSnapshotWeeks();
+  renderWeeklySnapshotHistory();
   const c = getNutriCibles();
   const today = new Date(); today.setHours(0,0,0,0);
   const { samedi, vendredi, toLocalDateStr } = getBilanWeekRange(_bilanHebdoOffset);
