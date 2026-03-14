@@ -4056,27 +4056,42 @@ function renderBilanHebdo(){
     function topCorrectors(macroKey, deficitG, maxKcalPerPortion){
       if(!CIQUAL || !CIQUAL.length) return [];
       var MAX_KCAL = maxKcalPerPortion || 300;
-      // Exclure les plats préparés et produits industriels (r=3)
-      // Exclure aussi les aliments "moyen" trop génériques et les alcools
       var EXCLUDE = ['alcool','bière','vin ','whisky','liqueur','rhum','vodka','sirop de'];
+
+      // Plancher calorique : en dessous de 50 kcal/100g → condiment/extrait/poudre, inutilisable
+      var KCAL_MIN = 50;
+
       var scored = CIQUAL
         .filter(function(a){
           if(a[macroKey] == null || a[macroKey] <= 0 || a.k <= 0) return false;
+          if(a.k < KCAL_MIN) return false; // éliminer extraits, bouillons, gélatines
           if((a.r || 0) >= 3) return false; // exclure plats préparés/industriels
           var nl = a.n.toLowerCase();
           if(EXCLUDE.some(function(e){ return nl.indexOf(e) !== -1; })) return false;
           return true;
         })
         .map(function(a){
-          var score = a[macroKey] / a.k;
+          // Score brut : ratio macro/kcal
+          var ratioScore = a[macroKey] / a.k;
+
+          // Bonus naturalité : r=0 (aliment brut) → ×1.0, r=1 (simple) → ×0.85, r=2 (transformé) → ×0.65
+          var naturBonus = a.r === 0 ? 1.0 : a.r === 1 ? 0.85 : 0.65;
+
+          // Bonus densité calorique raisonnable : on favorise 80–350 kcal/100g
+          // En dessous ou au-dessus → pénalité progressive
+          var densBonus = (a.k >= 80 && a.k <= 350) ? 1.0 : (a.k < 80 ? a.k / 80 : 350 / a.k);
+
+          var score = ratioScore * naturBonus * densBonus;
+
           var grams = Math.round((deficitG * 0.5) / (a[macroKey] / 100));
           var kcal  = Math.round(grams * a.k / 100);
           if(kcal > MAX_KCAL){ kcal = MAX_KCAL; grams = Math.round(MAX_KCAL / a.k * 100); }
           var macroApport = Math.round(grams * a[macroKey] / 100);
-          return { nom: a.n, score: score, grams: grams, kcal: kcal, macroApport: macroApport };
+          return { nom: a.n, score: score, grams: grams, kcal: kcal, macroApport: macroApport, r: a.r };
         })
         .filter(function(a){ return a.grams >= 20 && a.grams <= 600 && a.macroApport >= 2; })
         .sort(function(a, b){ return b.score - a.score; });
+
       var seen = [], results = [];
       for(var i = 0; i < scored.length && results.length < 5; i++){
         var s = scored[i];
