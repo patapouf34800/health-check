@@ -158,6 +158,9 @@
   </button>
   <div id="lockError" style="color:#f43f5e;font-size:13px;min-height:18px"></div>
   <div id="lockHint" style="font-size:11px;color:rgba(255,255,255,0.2);text-align:center;max-width:300px"></div>
+  <div style="margin-top:20px;border-top:1px solid rgba(255,255,255,0.05);padding-top:16px;text-align:center">
+    <button onclick="resetEncryption()" style="background:none;border:none;color:rgba(255,255,255,0.15);font-size:11px;cursor:pointer;text-decoration:underline" title="Efface toutes les données locales et recrée un mot de passe">Réinitialiser le chiffrement</button>
+  </div>
 </div>
 
 <div class="app-layout">
@@ -1497,6 +1500,18 @@ async function unlockEncryption(password) {
 }
 
 // ── ÉCRAN DE VERROUILLAGE ────────────────────────────────────────────────────
+
+
+async function resetEncryption() {
+  if (!confirm('Attention : ceci effacera toutes les données locales chiffrées.\nVos exports JSON restent intacts.\n\nContinuer ?')) return;
+  localStorage.removeItem(STORAGE_KEY_META);
+  localStorage.removeItem(STORAGE_KEY_ENC);
+  localStorage.removeItem(STORAGE_KEY_ENC + '_calc');
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(STORAGE_KEY + '_calc');
+  window._masterKey = null;
+  location.reload();
+}
 
 async function showLockScreen(isFirstTime) {
   const overlay = document.getElementById('lockOverlay');
