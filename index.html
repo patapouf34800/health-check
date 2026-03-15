@@ -3487,18 +3487,26 @@ function genPdfBilan(){
   const pageH = doc.internal.pageSize.getHeight();
   let y = 0; let pageNum = 1;
 
-  function newPage(){ doc.addPage(); pageNum++; y=26; }
+  function paintPage(){
+    // Fond sombre
+    doc.setFillColor(5,5,8); doc.rect(0,0,pageW,pageH,'F');
+    // Header orange
+    doc.setFillColor(249,115,22); doc.rect(0,0,pageW,16,'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(12); doc.setFont('helvetica','bold');
+    doc.text(pdfStr('MON SUIVI SANTE - BILAN PERSONNEL'), 14, 11);
+    doc.setFontSize(9); doc.setFont('helvetica','normal');
+    doc.text(new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}), pageW-14, 11, {align:'right'});
+    // Footer
+    doc.setFillColor(14,14,26); doc.rect(0,pageH-14,pageW,14,'F');
+    doc.setFontSize(8); doc.setTextColor(100,100,120); doc.setFont('helvetica','normal');
+    doc.text(pdfStr('MON SUIVI SANTE - Rapport personnel confidentiel'), 14, pageH-5);
+    doc.text(pdfStr('Page '+pageNum), pageW-14, pageH-5, {align:'right'});
+  }
+  function newPage(){ doc.addPage(); pageNum++; paintPage(); y=26; }
   function checkY(needed){ if(y+needed > pageH-18) newPage(); }
 
-  // Fond sombre
-  doc.setFillColor(5,5,8); doc.rect(0,0,pageW,pageH,'F');
-
-  // Header orange
-  doc.setFillColor(249,115,22); doc.rect(0,0,pageW,16,'F');
-  doc.setTextColor(255,255,255); doc.setFontSize(12); doc.setFont('helvetica','bold');
-  doc.text(pdfStr('MON SUIVI SANTÉ — BILAN PERSONNEL'), 14, 11);
-  doc.setFontSize(9); doc.setFont('helvetica','normal');
-  doc.text(pdfStr(new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})), pageW-14, 11, {align:'right'});
+  // Fond sombre page 1
+  paintPage();
   y=26;
 
   const cutoff = periode===999 ? null : new Date(); 
@@ -3670,12 +3678,6 @@ function genPdfBilan(){
   }
 
 
-
-  // Footer
-  doc.setFillColor(14,14,26); doc.rect(0,pageH-14,pageW,14,'F');
-  doc.setFontSize(8); doc.setTextColor(100,100,120); doc.setFont('helvetica','normal');
-  doc.text(pdfStr('MON SUIVI SANTÉ — Rapport personnel confidentiel'), 14, pageH-5);
-  doc.text(pdfStr('Page '+pageNum), pageW-14, pageH-5, {align:'right'});
 
   doc.save('bilan_perso_' + new Date().toLocaleDateString('fr-FR').replace(/\//g,'-') + '.pdf');
 }
