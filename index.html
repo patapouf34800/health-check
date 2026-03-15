@@ -19,7 +19,7 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#050508;color:#e8e8f0;font-family:sans-serif;min-height:100vh}
+  body{background:#050508;color:#e8e8f0;font-family:sans-serif;min-height:100vh;overflow-x:hidden}
   ::-webkit-scrollbar{width:4px}
   ::-webkit-scrollbar-thumb{background:#f97316;border-radius:2px}
   ::-webkit-scrollbar-track{background:#111}
@@ -60,6 +60,14 @@
   @media(max-width:768px){
     /* Barre mobile en haut */
     .mobile-topbar{display:flex !important}
+    /* kpi-box sans min-width sur mobile */
+    .kpi-box{min-width:0 !important;flex:1}
+    /* Modale aide full width */
+    #aideModal > div{margin:20px 12px;padding:20px 16px;border-radius:12px}
+    /* day-row : masquer les colonnes moins importantes */
+    .day-row{gap:8px;padding:10px 10px}
+    /* font-size minimum lisible */
+    .card-label,.kpi-label{font-size:10px}
     /* Sidebar cachée par défaut, slide depuis la gauche */
     .sidebar{transform:translateX(-100%);transition:transform 0.25s ease;z-index:200;width:260px;min-width:260px}
     .sidebar.mobile-open{transform:translateX(0)}
@@ -103,7 +111,7 @@
   .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 
   .day-list{display:flex;flex-direction:column;gap:6px;max-height:380px;overflow-y:auto;margin-top:14px}
-  .day-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);transition:background .15s}
+  .day-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);transition:background .15s;min-width:0;overflow-x:auto}
   .day-row:hover{background:rgba(255,255,255,0.04)}
   .day-date{font-family:'Space Mono',monospace;font-size:12px;color:rgba(255,255,255,0.4);min-width:45px}
   .day-bar-wrap{flex:1;height:4px;background:rgba(255,255,255,0.05);border-radius:2px;overflow:hidden}
@@ -298,7 +306,7 @@
           <button class="period-btn dash-period-btn" onclick="setPeriod('tout',this)">Tout</button>
         </div>
       </div>
-      <div style="position:relative" id="chartMainWrap">
+      <div style="position:relative;min-height:200px" id="chartMainWrap">
         <canvas id="chartMain"></canvas>
         <div id="crosshair" style="position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.25);pointer-events:none;display:none"></div>
         <div id="crosshairTooltip" style="position:absolute;top:10px;background:rgba(10,10,20,0.95);border:1px solid rgba(249,115,22,0.4);border-radius:8px;padding:8px 12px;pointer-events:none;display:none;white-space:nowrap;font-size:13px;z-index:10;font-family:sans-serif"></div>
@@ -1993,7 +2001,7 @@ function destroyChart(id){ if(charts[id]){charts[id].destroy();delete charts[id]
 
 function chartOptions(unit){
   return {
-    responsive:true,maintainAspectRatio:true,
+    responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(10,10,20,0.95)',titleColor:'#f97316',bodyColor:'#fff',borderColor:'rgba(249,115,22,0.3)',borderWidth:1,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${Math.round(ctx.parsed.y).toLocaleString('fr-FR')} ${unit}`}}},
     scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.3)',font:{size:10},maxTicksLimit:10}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.3)',font:{size:10}}}}
   };
@@ -6086,7 +6094,7 @@ if('serviceWorker' in navigator){
 
 <!-- MODALE AIDE -->
 <div id="aideModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.7);overflow-y:auto">
-  <div style="max-width:720px;margin:40px auto;background:#0e0e1a;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:32px;position:relative;min-height:200px">
+  <div style="max-width:720px;margin:40px auto 40px;background:#0e0e1a;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px 24px;position:relative;min-height:200px">
     <button onclick="document.getElementById('aideModal').style.display='none'"
       style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.05);border:none;color:rgba(255,255,255,0.5);font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center">×</button>
     <div id="aideContent" style="color:rgba(255,255,255,0.8);font-size:14px;line-height:1.7;font-family:inherit">
