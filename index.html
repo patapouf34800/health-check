@@ -1917,7 +1917,7 @@ function refresh(){
 
 function renderKPI(s){
   const veloFiltered=getFilteredVeloByPeriod(activePeriod);
-  const veloDashDist=veloFiltered.reduce((s,v)=>s+v.distance,0);
+  const veloDashDist=veloFiltered.reduce((s,v)=>s+(v.distance||0),0);
   const kpis=[
     {label:'Déficit total',value:Math.round(s.totalDeficit).toLocaleString('fr-FR'),unit:'kcal',color:s.totalDeficit>0?'green':'red'},
     {label:'Perte estimée',value:(s.pertePoids>0?'−':'+')+Math.abs(s.pertePoids).toFixed(2),unit:'kg',color:s.pertePoids>0?'green':'red'},
@@ -1926,7 +1926,7 @@ function renderKPI(s){
     {label:'Moy. calories',value:Math.round(s.moyenneCalories).toLocaleString('fr-FR'),unit:'kcal/j',color:'indigo'},
     {label:'Jours en déficit',value:s.joursDeficit,unit:'/ '+days.length,color:'yellow'},
     {label:'Déficit moyen',value:Math.round(s.avgDailyDeficit).toLocaleString('fr-FR'),unit:'kcal/j',color:'blue'},
-    {label:'Vélo (période)',value:veloDashDist.toFixed(1),unit:'km',color:'blue'},
+    {label:'Sport (période)',value:veloDashDist.toFixed(1),unit:'km',color:'blue'},
   ];
   document.getElementById('kpiGrid').innerHTML=kpis.map(k=>`<div class="card${k.blur?' card-blur':''}"><div class="card-label">${k.label}</div><div class="card-value ${k.color}">${k.value}</div><div class="card-unit">${k.unit}</div></div>`).join('');
 }
@@ -3040,7 +3040,7 @@ function renderCorrelations(){
   const veloMap = {};
   veloSessions.forEach(function(v){
     if(!veloMap[v.date]) veloMap[v.date] = { dist:0, dur:0, n:0 };
-    veloMap[v.date].dist += v.distance;
+    veloMap[v.date].dist += (v.distance||0);
     veloMap[v.date].dur += v.duree;
     veloMap[v.date].n++;
   });
@@ -3794,8 +3794,9 @@ function genPdfBilan(){
     if(veloP.length){
       checkY(46);
       sectionHeader('VELO & SPORT');
-      const totalKm = veloP.reduce((s,v)=>s+v.distance,0);
-      const moyVit = veloP.filter(v=>v.duree>0).reduce((s,v,_,a)=>s+v.distance/(v.duree/60)/a.length,0);
+      const veloAvecDist = veloP.filter(v=>v.distance>0);
+      const totalKm = veloP.reduce((s,v)=>s+(v.distance||0),0);
+      const moyVit = veloAvecDist.length>0?veloAvecDist.reduce((s,v,_,a)=>s+v.distance/(v.duree/60)/a.length,0):0;
       const totalKcalVelo = veloP.reduce((s,v)=>s+veloKcal(v),0);
       const bw = (pageW-28-18)/4;
       kpiBox('Distance totale', totalKm.toFixed(0), 'km', 'ok', 14, bw, y);
