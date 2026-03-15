@@ -253,16 +253,7 @@
   <div id="poids" class="panel">
     <div class="chart-card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <div class="chart-title" style="margin-bottom:0">Évolution du poids</div>
-          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(255,255,255,0.35)">
-            <span>ancre</span>
-            <input type="number" id="fenetrePeseeInput" value="3" min="1" max="30" step="1"
-              style="width:40px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:rgba(255,255,255,0.5);font-size:11px;padding:2px 4px;text-align:center"
-              oninput="fenetrePesee=parseInt(this.value)||3;refresh()" title="Nombre de jours de la fenêtre glissante pour le poids théorique">
-            <span>j</span>
-          </div>
-        </div>
+        <div class="chart-title" style="margin-bottom:0">Évolution du poids</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="period-btn proj-btn" onclick="setProjDays(30,this)">J+30</button>
           <button class="period-btn proj-btn active" onclick="setProjDays(90,this)">J+90</button>
@@ -1147,7 +1138,6 @@ let activePeriod = 'mois_en_cours'; // 'tout', 'mois_en_cours', 'mois_precedent'
 let veloActivePeriod = 'tout';
 let deficitActivePeriod = 'tout';
 let nbProjChoice = 90;
-let fenetrePesee = 3; // fenêtre glissante (nb jours) pour l'ancre du poids théorique
 let bilans = [];
 let tensions = [];
 let poidsAxisVisible = false;
@@ -1194,40 +1184,12 @@ function computeStats(){
   const moyenneCalories=filtered.reduce((s,d)=>s+d.calories,0)/(filtered.length||1);
   const joursDeficit=deficits.filter(d=>d.deficit>0).length;
   const avgDailyDeficit=totalDeficit/(filtered.length||1);
-  // poidsHistory : ancre glissante sur les pesées réelles des 7 derniers jours
-  // Pour chaque jour D :
-  //   1. On cherche les pesées réelles dans ]D-7j, D]
-  //   2. Si au moins une → ancre = moyenne de ces pesées
-  //   3. Sinon → on repart de l'ancre précédente (ou poidsInit au tout début)
-  //   4. On accumule les déficits depuis la dernière ancre jusqu'à D
-  const poidsHistory = (() => {
-    const peseeMap = {};
-    pesees.forEach(p => { peseeMap[p.date] = p.val; });
-    const result = [];
-    let lastAnchorDate = null;
-    let lastAnchorVal = poidsInit;
-    days.forEach((d) => {
-      const dStart = new Date(d.date);
-      dStart.setDate(dStart.getDate() - fenetrePesee);
-      const startStr = dStart.toISOString().split('T')[0];
-      const window7 = pesees.filter(p => p.date > startStr && p.date <= d.date);
-      if (window7.length > 0) {
-        const avg = window7.reduce((s, p) => s + p.val, 0) / window7.length;
-        const anchorDate = window7.reduce((a, p) => p.date > a ? p.date : a, window7[0].date);
-        lastAnchorDate = anchorDate;
-        lastAnchorVal = avg;
-      }
-      const defDepuisAncre = days
-        .filter(dd => dd.date > (lastAnchorDate || '') && dd.date <= d.date)
-        .reduce((s, dd) => s + (dd.objectif - dd.calories), 0);
-      const theo = parseFloat((lastAnchorVal - defDepuisAncre / KCAL_PER_KG).toFixed(2));
-      result.push(theo);
-    });
-    return result;
-  })();
-  // Map date → poids théorique (utilisé par la liste des pesées)
-  const poidsHistoryByDate = {};
-  days.forEach((d, i) => { poidsHistoryByDate[d.date] = poidsHistory[i]; });
+  // poidsHistory couvre TOUS les jours (pas filtered) pour que les index
+  // du graphique correspondent aux labels, et pour servir de référence unique
+  let running=poidsInit;
+  const poidsHistory=days.map(d=>{ running-=(d.objectif-d.calories)/KCAL_PER_KG; return parseFloat(running.toFixed(2)); });
+  const poidsHistoryByDate={};
+  days.forEach((d,i)=>{ poidsHistoryByDate[d.date]=poidsHistory[i]; });
   const nbProj=nbProjChoice;
 
   // Modele Hall (NIH) avec adaptation metabolique
@@ -1449,7 +1411,7 @@ function saveData(){
     taille: tdeeTailleEl ? parseInt(tdeeTailleEl.value)||175 : 175,
     activite: tdeeActiviteEl ? parseFloat(tdeeActiviteEl.value)||1.2 : 1.2
   };
-  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, activePeriod, calcDate: calcDateVal, poids: getPoids(), objectif: getObjectif(), bilans, bilanUnites: window._bilanUnites||{}, tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount, conditionsActives: _conditionsActives, fenetrePesee };
+  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, activePeriod, calcDate: calcDateVal, poids: getPoids(), objectif: getObjectif(), bilans, bilanUnites: window._bilanUnites||{}, tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount, conditionsActives: _conditionsActives };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     localStorage.setItem(STORAGE_KEY+'_calc', JSON.stringify({calcItems, calcDate: calcDateVal}));
@@ -1469,7 +1431,6 @@ function loadData(){
     if(data.refs) { refs = data.refs; refNextId = data.refNextId || 100; }
     if(data.calcItems && data.calcItems.length > 0) calcItems = data.calcItems;
     if(data.activePeriod) activePeriod = data.activePeriod;
-    if(data.fenetrePesee){ fenetrePesee=data.fenetrePesee; const fi=document.getElementById('fenetrePeseeInput'); if(fi) fi.value=fenetrePesee; }
     if(data.veloSessions) veloSessions = data.veloSessions;
     if(data.bilans) bilans = data.bilans;
     if(data.tensions) tensions = data.tensions;
@@ -1565,7 +1526,6 @@ function importData(event){
       if(data.refs) { refs = data.refs; refNextId = data.refNextId || 100; }
       if(data.calcItems) calcItems = data.calcItems;
       if(data.activePeriod) activePeriod = data.activePeriod;
-    if(data.fenetrePesee){ fenetrePesee=data.fenetrePesee; const fi=document.getElementById('fenetrePeseeInput'); if(fi) fi.value=fenetrePesee; }
       if(data.bilanUnites) window._bilanUnites = data.bilanUnites;
       if(data.weeklySnapshots) window._weeklySnapshots = data.weeklySnapshots;
       else if(data.lastWeekBilanSnapshot) window._weeklySnapshots = [data.lastWeekBilanSnapshot];
@@ -4889,13 +4849,13 @@ function renderPeseeList(){
   const s=computeStats();
   el.innerHTML=pesees.slice().reverse().map((p,ri)=>{
     const i=pesees.length-1-ri;
-    // Écart basé sur la même source que le graphique (poidsHistoryByDate)
+    // Écart basé sur la même source que le graphique
     let ecartHtml='';
-    const theoVal = s.poidsHistoryByDate[p.date];
-    if (theoVal != null) {
-      const diff = parseFloat((p.val - theoVal).toFixed(2));
-      const col = diff <= 0 ? '#22c55e' : '#f97316';
-      ecartHtml = '<span class="pesee-blur" style="font-family:monospace;font-size:11px;color:'+col+';min-width:80px;text-align:right">'+(diff>0?'+':'')+diff.toFixed(2)+' kg vs théo.</span>';
+    const theoVal=s.poidsHistoryByDate[p.date];
+    if(theoVal!=null){
+      const diff=parseFloat((p.val-theoVal).toFixed(2));
+      const col=diff<=0?'#22c55e':'#f97316';
+      ecartHtml='<span class="pesee-blur" style="font-family:monospace;font-size:11px;color:'+col+';min-width:80px;text-align:right">'+(diff>0?'+':'')+diff.toFixed(2)+' kg vs théo.</span>';
     }
     return '<div class="day-row">'+
       '<span class="day-date">'+p.label+'</span>'+
