@@ -1378,7 +1378,14 @@ function addTension(){
   const pouls = parseInt(document.getElementById('tensionPouls').value) || null;
   if(!date || isNaN(sys) || isNaN(dia)){ alert('Date, systolique et diastolique requis.'); return; }
   // Remplacer si même date
+  const _todayT = new Date().toISOString().split('T')[0];
+  const labelT = new Date(date).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
   const idx = tensions.findIndex(function(t){ return t.date === date; });
+  if(date > _todayT){
+    if(!confirm('⚠️ La date ('+labelT+') est dans le futur. Confirmer ?')) return;
+  } else if(idx >= 0){
+    if(!confirm('Une tension existe déjà pour le '+labelT+' ('+tensions[idx].sys+'/'+tensions[idx].dia+'). Remplacer ?')) return;
+  }
   const entry = { date, sys, dia, pouls };
   if(idx >= 0) tensions[idx] = entry;
   else tensions.push(entry);
@@ -2968,6 +2975,13 @@ function validerJournee(){
   const label=new Date(dateVal).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
   const existing=days.findIndex(d=>d.date===dateVal);
   const calcNoteVal=document.getElementById('calcNote').value.trim();
+  // Sécurité date
+  const todayStr = new Date().toISOString().split('T')[0];
+  if(dateVal > todayStr){
+    if(!confirm('⚠️ La date sélectionnée ('+label+') est dans le futur. Confirmer quand même ?')) return;
+  } else if(existing >= 0){
+    if(!confirm('Une journée existe déjà pour le '+label+'. Les calories seront ajoutées à celles existantes. Continuer ?')) return;
+  }
   // Agréger les macros des calcItems
   var tp=0,tg=0,tl=0,tf=0,hasMacro=false;
   calcItems.forEach(function(i){
@@ -3095,6 +3109,10 @@ function addVelo(){
   const typeVal = typeEl ? typeEl.value : 'velo_interieur';
   const metCustomEl = document.getElementById('veloMetCustom');
   const metCustom = (typeVal==='autre' && metCustomEl) ? parseFloat(metCustomEl.value)||5 : null;
+  const _todayV = new Date().toISOString().split('T')[0];
+  if(date > _todayV){
+    if(!confirm('⚠️ La date ('+label+') est dans le futur. Confirmer ?')) return;
+  }
   veloSessions.push({date,label,distance:dist,duree:dur,type:typeVal,metCustom});
   veloSessions.sort((a,b)=>a.date.localeCompare(b.date));
   document.getElementById('veloDistance').value='';
@@ -5699,6 +5717,12 @@ function addEntry(){
   const label=new Date(dateVal).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
   const noteVal=document.getElementById('newNote').value.trim();
   const existing=days.findIndex(d=>d.date===dateVal);
+  const todayStrM = new Date().toISOString().split('T')[0];
+  if(dateVal > todayStrM){
+    if(!confirm('⚠️ La date sélectionnée ('+label+') est dans le futur. Confirmer quand même ?')) return;
+  } else if(existing >= 0){
+    if(!confirm('Une journée existe déjà pour le '+label+'. Les calories seront remplacées ('+days[existing].calories+' kcal → '+calVal+' kcal). Continuer ?')) return;
+  }
   if(existing>=0){days[existing].calories=calVal;if(noteVal) days[existing].note=noteVal;}
   else{
     days.push({date:dateVal,label,calories:calVal,objectif:getObjectif(),note:noteVal||undefined});
@@ -5753,6 +5777,12 @@ function addPesee(){
   if(!dateVal||!val||val<=0){alert('Merci de renseigner une date et un poids valide.');return;}
   const label=new Date(dateVal).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
   const existing=pesees.findIndex(p=>p.date===dateVal);
+  const _todayP = new Date().toISOString().split('T')[0];
+  if(dateVal > _todayP){
+    if(!confirm('⚠️ La date ('+label+') est dans le futur. Confirmer ?')) return;
+  } else if(existing >= 0){
+    if(!confirm('Une pesée existe déjà pour le '+label+' ('+pesees[existing].val+' kg). Remplacer par '+val+' kg ?')) return;
+  }
   if(existing>=0){pesees[existing].val=val;}
   else{pesees.push({date:dateVal,label,val});pesees.sort((a,b)=>a.date.localeCompare(b.date));}
   document.getElementById('peseeVal').value='';
