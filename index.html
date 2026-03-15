@@ -4885,7 +4885,7 @@ function renderWeeklySnapshotHistory(){
   }
 
   function snapCard(snap, idx){
-    const label = 'J'+(snaps.length-idx)+' · '+fmtDate(snap.samStr)+' → '+fmtDate(snap.venStr);
+    const label = fmtDate(snap.samStr)+' → '+fmtDate(snap.venStr);
     const deficit = snap.avgObj ? (snap.avgObj - snap.avgKcal) : null;
     const defStr = deficit !== null ? (deficit > 0 ? '−'+Math.round(deficit)+' kcal/j' : '+'+Math.round(Math.abs(deficit))+' kcal/j') : '';
     const defColor = deficit !== null ? (deficit > 0 ? '#22c55e' : '#ef4444') : '';
@@ -4935,7 +4935,7 @@ function renderBilanHebdo(){
   let navLabel = '';
   if(bloc && bloc.length > 0){
     const blocNum = blocIdx + 1;
-    navLabel = 'Bloc '+blocNum+' · '+fmtD(bloc[0].date)+' → '+fmtD(bloc[bloc.length-1].date);
+    navLabel = fmtD(bloc[0].date)+' → '+fmtD(bloc[bloc.length-1].date);
   } else {
     navLabel = 'Aucune donnée';
   }
@@ -4955,8 +4955,8 @@ function renderBilanHebdo(){
 
   // Sous-titre
   const subtitle = isComplete
-    ? 'Bloc complet · '+bloc.length+' jours analysés'
-    : 'Bloc en cours · '+bloc.length+'/7 jours (bilan disponible à 7 jours)';
+    ? fmtD(bloc[0].date)+' → '+fmtD(bloc[bloc.length-1].date)+' · '+bloc.length+' jours'
+    : fmtD(bloc[0].date)+' → '+fmtD(bloc[bloc.length-1].date)+' · '+bloc.length+'/7 jours (bilan disponible à 7 jours)';
   document.getElementById('bilanHebdoSubtitle').textContent = subtitle;
 
   // Construire la grille des 7 jours (complets ou partiels)
