@@ -1,6 +1,7 @@
-const CACHE_NAME = 'calorietrack-v5';
+const CACHE_NAME = 'calorietrack-v6';
 const STATIC_ASSETS = [
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js',
   'https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap'
 ];
 self.addEventListener('install', event => {
@@ -23,7 +24,8 @@ self.addEventListener('fetch', event => {
                   url.pathname.endsWith('/') ||
                   url.pathname.endsWith('manifest.json') ||
                   url.pathname.endsWith('sw.js') ||
-                  url.pathname.endsWith('ciqual.json');
+                  url.pathname.endsWith('ciqual.json') ||
+                  url.pathname.endsWith('aide.md');
   if (isLocal) {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(event.request))
