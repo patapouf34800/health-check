@@ -150,6 +150,7 @@
   </div>
   <div class="sidebar-actions">
     <button class="btn btn-secondary" onclick="exportData()" style="padding:6px 10px;font-size:10px;text-align:center">⬇ Exporter</button>
+    <button class="btn btn-secondary" onclick="exportDataChiffre()" style="padding:6px 10px;font-size:10px;text-align:center" title="Export chiffré par mot de passe">🔒 Chiffré</button>
     <label class="btn btn-secondary" style="padding:6px 10px;font-size:10px;cursor:pointer;text-align:center">⬆ Importer<input type="file" accept=".json" onchange="importData(event)" style="display:none"></label>
     <span id="saveIndicator" class="sidebar-save"></span>
   </div>
@@ -1479,6 +1480,79 @@ function loadData(){
   } catch(e) { return false; }
 }
 
+// ── CRYPTO (Web Crypto API — AES-GCM + PBKDF2) ──────────────────────────────
+
+async function cryptoEncrypt(jsonStr, password) {
+  const enc = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv   = crypto.getRandomValues(new Uint8Array(12));
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
+  );
+  const key = await crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt, iterations:200000, hash:'SHA-256' },
+    keyMaterial, { name:'AES-GCM', length:256 }, false, ['encrypt']
+  );
+  const cipherBuf = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, enc.encode(jsonStr));
+  const toB64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+  return {
+    __encrypted: true,
+    salt: toB64(salt),
+    iv:   toB64(iv),
+    data: toB64(cipherBuf)
+  };
+}
+
+async function cryptoDecrypt(payload, password) {
+  const enc = new TextEncoder();
+  const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const salt = fromB64(payload.salt);
+  const iv   = fromB64(payload.iv);
+  const data = fromB64(payload.data);
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
+  );
+  const key = await crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt, iterations:200000, hash:'SHA-256' },
+    keyMaterial, { name:'AES-GCM', length:256 }, false, ['decrypt']
+  );
+  const plainBuf = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, data);
+  return new TextDecoder().decode(plainBuf);
+}
+
+async function exportDataChiffre(){
+  // Demande du mot de passe via modale
+  const pwd = prompt('Choisissez un mot de passe pour chiffrer le fichier :');
+  if(!pwd) return;
+  const pwd2 = prompt('Confirmez le mot de passe :');
+  if(pwd !== pwd2){ alert('Les mots de passe ne correspondent pas.'); return; }
+  if(pwd.length < 4){ alert('Mot de passe trop court (minimum 4 caractères).'); return; }
+
+  // Construire le même objet data qu'exportData()
+  const tdeeSexeEl = document.getElementById('tdeeSexe');
+  const tdeeParams = {
+    sexe: tdeeSexeEl ? tdeeSexeEl.value : 'homme',
+    age: parseInt(document.getElementById('tdeeAge').value)||30,
+    taille: parseInt(document.getElementById('tdeeTaille').value)||175,
+    activite: parseFloat(document.getElementById('tdeeActivite').value)||1.2
+  };
+  const calcDateEl2 = document.getElementById('calcDate');
+  const calcDateVal2 = (calcDateEl2 && calcDateEl2.value) ? calcDateEl2.value : (window._savedCalcDate || '');
+  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, calcDate: calcDateVal2, activePeriod, bilans, bilanUnites: window._bilanUnites||{}, poids: getPoids(), objectif: getObjectif(), tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount, conditionsActives: _conditionsActives, exportDate: new Date().toISOString() };
+
+  try {
+    const encrypted = await cryptoEncrypt(JSON.stringify(data), pwd);
+    const blob = new Blob([JSON.stringify(encrypted, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const filename = 'mon-suivi-sante_chiffre_' + new Date().toLocaleDateString('fr-FR').replace(/\//g,'-') + '.json';
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  } catch(e){
+    alert('Erreur lors du chiffrement : ' + e.message);
+  }
+}
+
 function exportData(){
   const tdeeSexeEl = document.getElementById('tdeeSexe');
   const tdeeParams = {
@@ -1502,9 +1576,23 @@ function importData(event){
   const file = event.target.files[0];
   if(!file) return;
   const reader = new FileReader();
-  reader.onload = function(e){
+  reader.onload = async function(e){
     try {
-      const data = JSON.parse(e.target.result);
+      let parsed;
+      try { parsed = JSON.parse(e.target.result); } catch(pe){ alert('Fichier invalide.'); return; }
+      // Détection fichier chiffré
+      if(parsed.__encrypted === true){
+        const pwd = prompt('Ce fichier est chiffré. Entrez le mot de passe :');
+        if(!pwd) return;
+        try {
+          const jsonStr = await cryptoDecrypt(parsed, pwd);
+          parsed = JSON.parse(jsonStr);
+        } catch(de){
+          alert('Mot de passe incorrect ou fichier corrompu.');
+          return;
+        }
+      }
+      const data = parsed;
 
       // Cas 1 : fichier de bilans sanguins standalone
       if(!data.days && data.bilans){
