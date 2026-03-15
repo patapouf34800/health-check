@@ -1031,9 +1031,9 @@
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
         <div class="chart-title" style="margin-bottom:0">🫀 Tension artérielle</div>
         <div style="display:flex;gap:6px">
+          <button class="period-btn tension-period-btn" onclick="setTensionPeriod('15',this)">15j</button>
           <button class="period-btn tension-period-btn" onclick="setTensionPeriod('30',this)">30j</button>
-          <button class="period-btn tension-period-btn active" onclick="setTensionPeriod('90',this)">90j</button>
-          <button class="period-btn tension-period-btn" onclick="setTensionPeriod('tout',this)">Tout</button>
+          <button class="period-btn tension-period-btn active" onclick="setTensionPeriod('tout',this)">Tout</button>
         </div>
       </div>
       <!-- Saisie -->
@@ -1220,7 +1220,7 @@ let refNextId = 20;
 let calcItems = [];
 let activePeriod = 'mois_en_cours'; // 'tout', 'mois_en_cours', 'mois_precedent'
 let veloActivePeriod = 'tout';
-let tensionActivePeriod = '90';
+let tensionActivePeriod = 'tout';
 let deficitActivePeriod = 'tout';
 let nbProjChoice = 0;
 let bilans = [];
@@ -1558,6 +1558,8 @@ function renderTension(){
   const listEl = document.getElementById('tensionList'); if(!listEl) return;
   if(!tensions.length){ listEl.innerHTML='<p class="empty-msg">Aucune mesure enregistrée.</p>'; return; }
   const sorted = tensions.slice().reverse();
+  const showAll = listEl.dataset.showAll === '1';
+  const visible = showAll ? sorted : sorted.slice(0, 7);
   listEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
     '<thead><tr style="color:rgba(255,255,255,0.25);font-size:10px;text-transform:uppercase;letter-spacing:1px">' +
     '<th style="text-align:left;padding:6px 8px">Date</th>' +
@@ -1567,7 +1569,7 @@ function renderTension(){
     '<th style="text-align:center;padding:6px 8px">Zone</th>' +
     '<th style="text-align:right;padding:6px 8px"></th>' +
     '</tr></thead><tbody>' +
-    sorted.map(function(t){
+    visible.map(function(t){
       const zone = tensionZone(t.sys, t.dia);
       const date = new Date(t.date).toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
       return '<tr style="border-top:1px solid rgba(255,255,255,0.05)">' +
@@ -1579,7 +1581,8 @@ function renderTension(){
         '<td style="text-align:right;padding:8px"><button onclick="deleteTension(\''+t.date+'\')" style="background:none;border:none;color:rgba(255,255,255,0.2);cursor:pointer;font-size:12px" title="Supprimer">✕</button></td>' +
         '</tr>';
     }).join('') +
-    '</tbody></table>';
+    '</tbody></table>' +
+    (tensions.length > 7 ? '<div style="text-align:center;margin-top:10px"><button class="btn btn-secondary" style="font-size:11px;padding:5px 14px" onclick="var el=document.getElementById(&quot;tensionList&quot;);el.dataset.showAll=el.dataset.showAll===&quot;1&quot;?&quot;0&quot;:&quot;1&quot;;renderTension()">'+(showAll?'▲ Réduire':'▼ Voir les '+tensions.length+' mesures')+'</button></div>' : '');
 }
 
 /* ── STORAGE ── */
