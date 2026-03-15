@@ -1028,7 +1028,14 @@
   <!-- TENSION -->
   <div id="tension" class="panel">
     <div class="chart-card" style="margin-bottom:20px">
-      <div class="chart-title" style="margin-bottom:16px">🫀 Tension artérielle</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+        <div class="chart-title" style="margin-bottom:0">🫀 Tension artérielle</div>
+        <div style="display:flex;gap:6px">
+          <button class="period-btn tension-period-btn" onclick="setTensionPeriod('30',this)">30j</button>
+          <button class="period-btn tension-period-btn active" onclick="setTensionPeriod('90',this)">90j</button>
+          <button class="period-btn tension-period-btn" onclick="setTensionPeriod('tout',this)">Tout</button>
+        </div>
+      </div>
       <!-- Saisie -->
       <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:20px">
         <div>
@@ -1213,6 +1220,7 @@ let refNextId = 20;
 let calcItems = [];
 let activePeriod = 'mois_en_cours'; // 'tout', 'mois_en_cours', 'mois_precedent'
 let veloActivePeriod = 'tout';
+let tensionActivePeriod = '90';
 let deficitActivePeriod = 'tout';
 let nbProjChoice = 0;
 let bilans = [];
@@ -1431,9 +1439,19 @@ function renderTension(){
     const hasPouls = poulsVals.some(function(v){ return v !== null; });
 
     // Scatter plot : x=diastolique, y=systolique, couleur selon zone
-    const scatterData = tensions.map(function(t){
+    const filteredT = getFilteredTensions();
+    const isTout = tensionActivePeriod === 'tout';
+
+    // En mode "tout" : opacité et taille proportionnelles à l'ancienneté
+    const now = new Date();
+    const oldest = filteredT.length ? new Date(filteredT[0].date+'T00:00:00') : now;
+    const newest = filteredT.length ? new Date(filteredT[filteredT.length-1].date+'T00:00:00') : now;
+    const range = Math.max(1, newest - oldest);
+
+    const scatterData = filteredT.map(function(t){
       const z = tensionZone(t.sys, t.dia);
-      return { x: t.dia, y: t.sys, pouls: t.pouls, date: t.date, zone: z };
+      const age = isTout ? (new Date(t.date+'T00:00:00') - oldest) / range : 1; // 0=plus ancien, 1=plus récent
+      return { x: t.dia, y: t.sys, pouls: t.pouls, date: t.date, zone: z, age: age };
     });
 
     // Un dataset par zone pour avoir des couleurs distinctes
@@ -1450,14 +1468,32 @@ function renderTension(){
     const datasets = Object.entries(zoneGroups)
       .filter(function(e){ return e[1].pts.length > 0; })
       .map(function(e){
+        // En mode tout : opacité et rayon variables selon ancienneté
+        const bgColors = e[1].pts.map(function(p){
+          if(!isTout) return e[1].color;
+          const opacity = 0.2 + p.age * 0.8; // 0.2 pour les plus anciens, 1.0 pour les plus récents
+          // Convertir la couleur hex en rgba avec opacité
+          const hex = e[1].color.replace('#','');
+          if(hex.length === 6){
+            const r = parseInt(hex.slice(0,2),16);
+            const g = parseInt(hex.slice(2,4),16);
+            const b = parseInt(hex.slice(4,6),16);
+            return 'rgba('+r+','+g+','+b+','+opacity.toFixed(2)+')';
+          }
+          return e[1].color;
+        });
+        const radii = e[1].pts.map(function(p){
+          if(!isTout) return 7;
+          return Math.round(4 + p.age * 4); // 4px pour les plus anciens, 8px pour les plus récents
+        });
         return {
           label: e[0],
           data: e[1].pts,
-          backgroundColor: e[1].color,
-          borderColor: 'rgba(0,0,0,0.3)',
+          backgroundColor: bgColors,
+          borderColor: 'rgba(0,0,0,0.2)',
           borderWidth: 1,
-          pointRadius: 7,
-          pointHoverRadius: 9,
+          pointRadius: radii,
+          pointHoverRadius: 10,
         };
       });
 
@@ -4796,6 +4832,21 @@ function setPeriod(period, btn){
   if(btn) btn.classList.add('active');
   refresh();
   saveData();
+}
+
+function setTensionPeriod(period, btn){
+  tensionActivePeriod = period;
+  document.querySelectorAll('.tension-period-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderTension();
+}
+
+function getFilteredTensions(){
+  if(tensionActivePeriod === 'tout') return tensions;
+  const days = parseInt(tensionActivePeriod);
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+  return tensions.filter(t => t.date >= cutoffStr);
 }
 
 function setVeloPeriod(period, btn){
