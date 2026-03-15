@@ -1499,12 +1499,12 @@ function renderTension(){
 
     // Zones colorées en arrière-plan via annotations
     const zones = {
-      zone_hypo: { type:'box', xMin:0,  xMax:200, yMin:0,   yMax:90,  backgroundColor:'rgba(167,139,250,0.07)', borderWidth:0, label:{display:true, content:'Hypotension',     color:'rgba(167,139,250,0.4)', font:{size:8}, position:{x:'start',y:'start'}} },
-      zone_opt:  { type:'box', xMin:0,  xMax:80,  yMin:90,  yMax:120, backgroundColor:'rgba(34,197,94,0.07)',   borderWidth:0, label:{display:true, content:'Optimale',        color:'rgba(34,197,94,0.35)',  font:{size:8}, position:{x:'start',y:'start'}} },
-      zone_nor:  { type:'box', xMin:0,  xMax:200, yMin:120, yMax:130, backgroundColor:'rgba(163,230,53,0.07)',  borderWidth:0, label:{display:true, content:'Normale',          color:'rgba(163,230,53,0.35)', font:{size:8}, position:{x:'start',y:'start'}} },
-      zone_haut: { type:'box', xMin:0,  xMax:200, yMin:130, yMax:140, backgroundColor:'rgba(234,179,8,0.08)',   borderWidth:0, label:{display:true, content:'Normale haute',    color:'rgba(234,179,8,0.35)',  font:{size:8}, position:{x:'start',y:'start'}} },
-      zone_h1:   { type:'box', xMin:0,  xMax:200, yMin:140, yMax:160, backgroundColor:'rgba(249,115,22,0.08)',  borderWidth:0, label:{display:true, content:'HTA G1',           color:'rgba(249,115,22,0.4)', font:{size:8}, position:{x:'start',y:'start'}} },
-      zone_h2:   { type:'box', xMin:0,  xMax:200, yMin:160, yMax:200, backgroundColor:'rgba(239,68,68,0.08)',   borderWidth:0, label:{display:true, content:'HTA G2',           color:'rgba(239,68,68,0.35)',  font:{size:8}, position:{x:'start',y:'start'}} },
+      zone_hypo: { type:'box', yMin:0,   yMax:90,  backgroundColor:'rgba(167,139,250,0.07)', borderWidth:0, label:{display:true, content:'Hypotension',    color:'rgba(167,139,250,0.4)', font:{size:8}, position:{x:'start',y:'start'}} },
+      zone_opt:  { type:'box', yMin:90,  yMax:120, backgroundColor:'rgba(34,197,94,0.07)',   borderWidth:0, label:{display:true, content:'Optimale',       color:'rgba(34,197,94,0.35)',  font:{size:8}, position:{x:'start',y:'start'}} },
+      zone_nor:  { type:'box', yMin:120, yMax:130, backgroundColor:'rgba(163,230,53,0.07)',  borderWidth:0, label:{display:true, content:'Normale',         color:'rgba(163,230,53,0.35)', font:{size:8}, position:{x:'start',y:'start'}} },
+      zone_haut: { type:'box', yMin:130, yMax:140, backgroundColor:'rgba(234,179,8,0.08)',   borderWidth:0, label:{display:true, content:'Normale haute',   color:'rgba(234,179,8,0.35)',  font:{size:8}, position:{x:'start',y:'start'}} },
+      zone_h1:   { type:'box', yMin:140, yMax:160, backgroundColor:'rgba(249,115,22,0.08)',  borderWidth:0, label:{display:true, content:'HTA G1',          color:'rgba(249,115,22,0.4)',  font:{size:8}, position:{x:'start',y:'start'}} },
+      zone_h2:   { type:'box', yMin:160, yMax:200, backgroundColor:'rgba(239,68,68,0.08)',   borderWidth:0, label:{display:true, content:'HTA G2',          color:'rgba(239,68,68,0.35)',  font:{size:8}, position:{x:'start',y:'start'}} },
     };
 
     charts['tension'] = new Chart(cvs.getContext('2d'), {
