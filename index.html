@@ -1058,7 +1058,7 @@
     <div class="chart-card" style="margin-bottom:20px">
       <div class="chart-title" style="margin-bottom:12px">Zones de référence</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;font-size:11px">
-        <div style="padding:8px 12px;border-radius:6px;background:rgba(56,189,248,0.1);border-left:3px solid #38bdf8"><strong style="color:#38bdf8">Hypotension</strong><div style="color:rgba(255,255,255,0.4);margin-top:2px">Sys &lt;90 — Dia &lt;60</div></div>
+        <div style="padding:8px 12px;border-radius:6px;background:rgba(167,139,250,0.1);border-left:3px solid #a78bfa"><strong style="color:#a78bfa">Hypotension</strong><div style="color:rgba(255,255,255,0.4);margin-top:2px">Sys &lt;90 — Dia &lt;60</div></div>
         <div style="padding:8px 12px;border-radius:6px;background:rgba(34,197,94,0.1);border-left:3px solid #22c55e"><strong style="color:#22c55e">Optimale</strong><div style="color:rgba(255,255,255,0.4);margin-top:2px">Sys &lt;120 — Dia &lt;80</div></div>
         <div style="padding:8px 12px;border-radius:6px;background:rgba(163,230,53,0.1);border-left:3px solid #a3e635"><strong style="color:#a3e635">Normale</strong><div style="color:rgba(255,255,255,0.4);margin-top:2px">Sys 120–129 — Dia 80–84</div></div>
         <div style="padding:8px 12px;border-radius:6px;background:rgba(234,179,8,0.08);border-left:3px solid #eab308"><strong style="color:#eab308">Normale haute</strong><div style="color:rgba(255,255,255,0.4);margin-top:2px">Sys 130–139 — Dia 85–89</div></div>
@@ -1354,7 +1354,7 @@ function computeStats(){
 /* ── TENSION ── */
 function tensionZone(sys, dia){
   const s = sys, d = dia;
-  if(s < 90 || d < 60) return { label:'Hypotension', color:'#38bdf8' };
+  if(s < 90 || d < 60) return { label:'Hypotension', color:'#a78bfa' };
   if(s < 120 && d < 80) return { label:'Optimale', color:'#22c55e' };
   if(s <= 129 && d <= 84) return { label:'Normale', color:'#a3e635' };
   if(s <= 139 && d <= 89) return { label:'Normale haute', color:'#eab308' };
@@ -1440,7 +1440,8 @@ function renderTension(){
 
     // Zones colorées via annotations
     const zones = {
-      zone_opt:  { type:'box', yMin:60,  yMax:120, backgroundColor:'rgba(34,197,94,0.07)',   borderWidth:0, label:{display:true, content:'Optimale',       color:'rgba(34,197,94,0.3)',         font:{size:9}, position:{x:'start',y:'end'}} },
+      zone_hypo: { type:'box', yMin:40,  yMax:90,  backgroundColor:'rgba(167,139,250,0.08)', borderWidth:0, label:{display:true, content:'Hypotension',    color:'rgba(167,139,250,0.4)',       font:{size:9}, position:{x:'start',y:'end'}} },
+      zone_opt:  { type:'box', yMin:90,  yMax:120, backgroundColor:'rgba(34,197,94,0.07)',   borderWidth:0, label:{display:true, content:'Optimale',       color:'rgba(34,197,94,0.3)',         font:{size:9}, position:{x:'start',y:'end'}} },
       zone_nor:  { type:'box', yMin:120, yMax:130, backgroundColor:'rgba(163,230,53,0.07)',  borderWidth:0, label:{display:true, content:'Normale',         color:'rgba(163,230,53,0.3)',        font:{size:9}, position:{x:'start',y:'end'}} },
       zone_haut: { type:'box', yMin:130, yMax:140, backgroundColor:'rgba(234,179,8,0.07)',   borderWidth:0, label:{display:true, content:'Normale haute',   color:'rgba(234,179,8,0.3)',         font:{size:9}, position:{x:'start',y:'end'}} },
       zone_h1:   { type:'box', yMin:140, yMax:160, backgroundColor:'rgba(249,115,22,0.08)',  borderWidth:0, label:{display:true, content:'HTA G1',          color:'rgba(249,115,22,0.3)',        font:{size:9}, position:{x:'start',y:'end'}} },
@@ -3708,7 +3709,7 @@ function genPdfSante(){
     // Lignes
     last5.forEach((t,i)=>{
       const zone = tensionZone(t.sys, t.dia);
-      const zoneRgb = zone.label==='Hypotension'?BLUE : zone.label==='Optimale'?GREEN : zone.label==='Normale'?[100,180,60] : zone.label==='Normale haute'?YELLOW_FG : RED;
+      const zoneRgb = zone.label==='Hypotension'?[167,139,250] : zone.label==='Optimale'?GREEN : zone.label==='Normale'?[100,180,60] : zone.label==='Normale haute'?YELLOW_FG : RED;
       if(i%2===0){ doc.setFillColor(248,250,255); doc.rect(18,y-3,pageW-36,7,'F'); }
       const dateStr = new Date(t.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
       doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(...DARK);
