@@ -5471,26 +5471,25 @@ async function initApp() {
   // Gestion du chiffrement localStorage
   const isFirstTime = !storageIsEncrypted();
   const hasClearData = !!localStorage.getItem(STORAGE_KEY);
-  // Afficher l'écran si : première fois OU données chiffrées existantes
-  if (isFirstTime && hasClearData) {
-    // Données en clair existantes → proposer de les chiffrer
+
+  if (isFirstTime) {
+    // Première fois (avec ou sans données en clair) → créer mot de passe
     await showLockScreen(true);
-    // Migrer les données en clair vers chiffré
-    const rawClear = localStorage.getItem(STORAGE_KEY);
-    if (rawClear && window._masterKey) {
-      const enc = await encryptForStorage(rawClear);
-      if (enc) localStorage.setItem(STORAGE_KEY_ENC, enc);
+    // Migrer les données en clair si elles existent
+    if (hasClearData && window._masterKey) {
+      const rawClear = localStorage.getItem(STORAGE_KEY);
+      if (rawClear) {
+        const enc = await encryptForStorage(rawClear);
+        if (enc) localStorage.setItem(STORAGE_KEY_ENC, enc);
+        localStorage.removeItem(STORAGE_KEY);
+      }
       const calcClear = localStorage.getItem(STORAGE_KEY+'_calc');
       if (calcClear) {
         const encCalc = await encryptForStorage(calcClear);
         if (encCalc) localStorage.setItem(STORAGE_KEY_ENC+'_calc', encCalc);
         localStorage.removeItem(STORAGE_KEY+'_calc');
       }
-      localStorage.removeItem(STORAGE_KEY);
     }
-  } else if (isFirstTime && !hasClearData) {
-    // Première utilisation, pas de données → créer mot de passe
-    await showLockScreen(true);
   } else {
     // Données chiffrées existantes → déverrouiller
     await showLockScreen(false);
