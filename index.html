@@ -3285,10 +3285,11 @@ function genPdfSante(){
   // PAGE DE GARDE
   pdfHeader(doc, c, 'RAPPORT MÉDICAL — BILANS BIOLOGIQUES', new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}), pageW);
   y = 36;
-  doc.setFontSize(20); doc.setFont('helvetica','bold'); doc.setTextColor(...hexToRgb(c.text));
-  doc.text(nom, 14, y); y+=8;
+  if(nom && nom !== 'Patient'){
+    doc.setFontSize(20); doc.setFont('helvetica','bold'); doc.setTextColor(...hexToRgb(c.text));
+    doc.text(nom, 14, y); y+=8;
+  }
   doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...hexToRgb(c.muted));
-  
   if(medecin){ doc.text('À l\'attention de : ' + medecin, 14, y); y+=6; }
   doc.text(selectedBilans.length + ' bilan(s) analysé(s)', 14, y); y+=14;
 
@@ -3406,8 +3407,9 @@ function genPdfBilan(){
   doc.text(new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}), pageW-14, 11, {align:'right'});
   y=26;
 
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-periode);
-  const periodeDays = days.filter(d=>new Date(d.date)>=cutoff);
+  const cutoff = periode===999 ? null : new Date(); 
+  if(cutoff) cutoff.setDate(cutoff.getDate()-periode);
+  const periodeDays = cutoff ? days.filter(d=>new Date(d.date)>=cutoff) : days;
 
   // Période
   doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(255,255,255,0.4);
@@ -3451,9 +3453,9 @@ function genPdfBilan(){
     doc.setFillColor(249,115,22); doc.rect(14,y,pageW-28,7,'F');
     doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255);
     doc.text('ALIMENTATION', 18, y+5); y+=11;
-    const totalDef = periodeDays.reduce((s,d)=>s+(d.deficit||0),0);
+    const totalDef = periodeDays.reduce((s,d)=>s+((d.objectif||getObjectif())-d.calories),0);
     const moyKcal = Math.round(periodeDays.reduce((s,d)=>s+d.calories,0)/periodeDays.length);
-    const joursDef = periodeDays.filter(d=>(d.deficit||0)>0).length;
+    const joursDef = periodeDays.filter(d=>((d.objectif||getObjectif())-d.calories)>0).length;
     const bw = (pageW-28-12)/3;
     kpiBox('Déficit total', Math.round(totalDef), 'kcal', totalDef>0?'ok':'danger', 14, bw, y);
     kpiBox('Moy. quotidienne', moyKcal, 'kcal/j', 'accent', 14+bw+6, bw, y);
