@@ -2199,8 +2199,11 @@ function renderSaisieList(s){
   document.getElementById('saisieTitle').textContent=`Données enregistrées (${days.length} jours)`;
   const el=document.getElementById('saisieList');
   if(!days.length){el.innerHTML='<p class="empty-msg">Aucune donnée. Utilisez le Calculateur journée ou saisissez manuellement.</p>';return;}
-  el.innerHTML=days.slice().reverse().map((d,ri)=>{
-    const i=days.length-1-ri, def=d.objectif-d.calories;
+  const reversed = days.slice().reverse();
+  const showAll = el.dataset.showAll === '1';
+  const visible = showAll ? reversed : reversed.slice(0, 7);
+  el.innerHTML = visible.map((d,ri)=>{
+    const i = days.length-1-ri, def=d.objectif-d.calories;
     return `<div class="day-row" id="saisie-row-${i}"${d.note?' title="'+d.note+'"':''}>
       <span class="day-date">${d.label}</span>
       <div class="day-bar-wrap"><div class="day-bar" style="width:${Math.min(100,d.calories/d.objectif*100)}%;background:${defColor(def)}"></div></div>
@@ -2210,7 +2213,10 @@ function renderSaisieList(s){
       <button class="day-edit-btn" onclick="editDay(${i})" title="Modifier">✏️</button>
       <button class="day-del" onclick="deleteDay(${i})">×</button>
     </div>`;
-  }).join('');
+  }).join('') + (days.length > 7 ? `<div style="text-align:center;margin-top:10px">
+    <button class="btn btn-secondary" style="font-size:11px;padding:5px 14px" onclick="this.closest('#saisieList, [id=saisieList]').dataset.showAll=this.closest('[id]').dataset.showAll==='1'?'0':'1';renderSaisieList(computeStats())">
+      ${showAll ? '▲ Réduire' : '▼ Voir les '+days.length+' jours'}
+    </button></div>` : '');
 }
 
 function renderPoidsCards(s){
@@ -4734,7 +4740,10 @@ function renderVelo(){
     if(!filtered.length){
       listEl.innerHTML='<p class="empty-msg">Aucune session enregistrée.</p>';
     } else {
-      listEl.innerHTML = filtered.slice().reverse().map(function(v,ri){
+      const veloReversed = filtered.slice().reverse();
+      const veloShowAll = listEl.dataset.showAll === '1';
+      const veloVisible = veloShowAll ? veloReversed : veloReversed.slice(0, 7);
+      listEl.innerHTML = veloVisible.map(function(v,ri){
         const idx = veloSessions.indexOf(v);
         const kcal = veloKcal(v);
         const act = getActivite(v.type||'velo_interieur');
@@ -4749,7 +4758,10 @@ function renderVelo(){
           +'<span style="color:rgba(255,255,255,0.2);font-size:11px;min-width:55px">'+poids+'kg</span>'
           +'<button class="day-del" onclick="deleteVelo('+idx+')">\u00d7</button>'
           +'</div>';
-      }).join('');
+      }).join('') + (filtered.length > 7 ? `<div style="text-align:center;margin-top:10px">
+        <button class="btn btn-secondary" style="font-size:11px;padding:5px 14px" onclick="const el=document.getElementById('veloList');el.dataset.showAll=el.dataset.showAll==='1'?'0':'1';renderVelo()">
+          ${veloShowAll ? '▲ Réduire' : '▼ Voir les '+filtered.length+' sessions'}
+        </button></div>` : '');
     }
   }
 }
@@ -5674,7 +5686,10 @@ function renderPeseeList(){
   if(!el)return;
   if(!pesees.length){el.innerHTML='<p class="empty-msg">Aucune pesée enregistrée. Ajoutez vos mesures réelles ci-dessus.</p>';return;}
   const s=computeStats();
-  el.innerHTML=pesees.slice().reverse().map((p,ri)=>{
+  const peseeReversed = pesees.slice().reverse();
+  const peseeShowAll = el.dataset.showAll === '1';
+  const peseeVisible = peseeShowAll ? peseeReversed : peseeReversed.slice(0, 7);
+  el.innerHTML=peseeVisible.map((p,ri)=>{
     const i=pesees.length-1-ri;
     // Écart basé sur la même source que le graphique
     let ecartHtml='';
@@ -5696,7 +5711,10 @@ function renderPeseeList(){
       ecartHtml+
       '<button class="day-del" onclick="deletePesee('+i+')">×</button>'+
     '</div>';
-  }).join('');
+  }).join('') + (pesees.length > 7 ? `<div style="text-align:center;margin-top:10px">
+    <button class="btn btn-secondary" style="font-size:11px;padding:5px 14px" onclick="const el=document.getElementById('peseeList');el.dataset.showAll=el.dataset.showAll==='1'?'0':'1';renderPeseeList()">
+      ${peseeShowAll ? '▲ Réduire' : '▼ Voir les '+pesees.length+' pesées'}
+    </button></div>` : '');
 }
 
 /* ── TDEE ── */
