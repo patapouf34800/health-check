@@ -1126,40 +1126,12 @@
 
   <!-- VELO -->
   <div id="velo" class="panel">
-    <div class="chart-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
-        <div class="chart-title" style="margin-bottom:0">🚴 Performance vélo</div>
-        <div style="display:flex;gap:6px">
-          <button class="period-btn velo-period-btn" onclick="setVeloPeriod('mois_en_cours',this)">Mois en cours</button>
-          <button class="period-btn velo-period-btn" onclick="setVeloPeriod('mois_precedent',this)">Mois précédent</button>
-          <button class="period-btn velo-period-btn active" onclick="setVeloPeriod('tout',this)">Tout</button>
-        </div>
-      </div>
-      <div style="position:relative;height:280px"><canvas id="chartVelo"></canvas></div>
-      <div class="legend" style="margin-top:14px">
-        <div class="legend-item"><div class="legend-line" style="background:#38bdf8"></div>Distance (km)</div>
-        <div class="legend-item"><div class="legend-line" style="background:#f97316"></div>Durée (min)</div>
-      </div>
+    <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px">
+      <button class="period-btn velo-period-btn" onclick="setVeloPeriod('mois_en_cours',this)">Mois en cours</button>
+      <button class="period-btn velo-period-btn" onclick="setVeloPeriod('mois_precedent',this)">Mois précédent</button>
+      <button class="period-btn velo-period-btn active" onclick="setVeloPeriod('tout',this)">Tout</button>
     </div>
-    <div class="chart-card" style="margin-top:20px">
-      <div class="chart-title">Cumul sur la période</div>
-      <div class="kpi-grid" id="kpiVelo"></div>
-    </div>
-    <div class="chart-card" style="margin-top:20px">
-      <div class="chart-title">📈 Progression vitesse moyenne (km/h)</div>
-      <div style="position:relative;height:200px"><canvas id="chartVitesse"></canvas></div>
-    </div>
-    <div class="chart-card" style="margin-top:20px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:16px">
-        <div class="chart-title" style="margin-bottom:0">🔥 Dépense calorique estimée</div>
-        <span style="font-size:10px;color:rgba(255,255,255,0.2);font-family:'Space Mono',monospace">MET 7 × poids du jour × durée — indicatif</span>
-      </div>
-      <div style="position:relative;height:200px"><canvas id="chartVeloKcal"></canvas></div>
-      <div class="legend" style="margin-top:12px">
-        <div class="legend-item"><div class="legend-dot" style="background:#4ade80;border-radius:2px"></div>Dépense par session</div>
-        <div class="legend-item"><div class="legend-line" style="background:rgba(74,222,128,0.4)"></div>Cumul</div>
-      </div>
-    </div>
+    <div id="sportChartsContainer"></div>
   </div>
 
   <!-- SAISIE VELO -->
@@ -4558,130 +4530,159 @@ function deleteVelo(i){
 }
 
 function renderVelo(){
-  const filtered=getFilteredVelo();
-  const totalDist=filtered.reduce((s,v)=>s+v.distance,0);
-  const totalDur=filtered.reduce((s,v)=>s+v.duree,0);
-  const nb=filtered.length;
-  const totalKcal=filtered.reduce((s,v)=>s+veloKcal(v),0);
-  const kpiEl=document.getElementById('kpiVelo');
-  if(kpiEl) kpiEl.innerHTML=[
-    {l:'Distance totale',v:totalDist.toFixed(1),u:'km',c:'#38bdf8'},
-    {l:'Durée totale',v:formatDuree(totalDur),u:'',c:'#f97316'},
-    {l:'Sessions',v:nb,u:'',c:'#e8e8f0'},
-    {l:'Moy. distance',v:nb?(totalDist/nb).toFixed(1):0,u:'km/session',c:'#e8e8f0'},
-    {l:'Dépense estimée',v:totalKcal.toLocaleString('fr-FR'),u:'kcal',c:'#4ade80'},
-    {l:'Moy. par session',v:nb?Math.round(totalKcal/nb):0,u:'kcal',c:'#4ade80'}
-  ].map(k=>`<div class="kpi-card"><div class="kpi-label">${k.l}</div><div class="kpi-value" style="color:${k.c}">${k.v}<span class="kpi-unit"> ${k.u}</span></div></div>`).join('');
-  if(charts['velo']){charts['velo'].destroy();delete charts['velo'];}
-  const cvs=document.getElementById('chartVelo');
-  if(cvs&&filtered.length){
-    charts['velo']=new Chart(cvs.getContext('2d'),{type:'bar',
-      data:{labels:filtered.map(v=>v.label),datasets:[
-        {label:'Distance (km)',data:filtered.map(v=>v.distance),backgroundColor:'rgba(56,189,248,0.65)',borderColor:'#38bdf8',borderWidth:1,borderRadius:3,yAxisID:'yDist'},
-        {label:'Durée (min)',data:filtered.map(v=>v.duree),type:'line',borderColor:'#f97316',backgroundColor:'rgba(249,115,22,0.08)',fill:false,tension:0.4,pointRadius:3,pointBackgroundColor:'#f97316',borderWidth:2,yAxisID:'yDur'}
-      ]},
-      options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(10,10,20,0.95)',titleColor:'#f97316',bodyColor:'#fff',borderColor:'rgba(249,115,22,0.3)',borderWidth:1}},
-        scales:{
+  const filtered = getFilteredVelo();
+  const container = document.getElementById('sportChartsContainer');
+  if(!container) return;
+
+  // Détruire les anciens charts sport
+  Object.keys(charts).filter(k=>k.startsWith('sport_')).forEach(k=>{ charts[k].destroy(); delete charts[k]; });
+
+  if(!filtered.length){
+    container.innerHTML = '<p class="empty-msg">Aucune session enregistrée.</p>';
+    return;
+  }
+
+  // Grouper par type d'activité
+  const groups = {};
+  filtered.forEach(v=>{
+    const type = v.type || 'velo_interieur';
+    if(!groups[type]) groups[type] = [];
+    groups[type].push(v);
+  });
+
+  container.innerHTML = '';
+
+  Object.entries(groups).forEach(([typeId, sessions])=>{
+    const act = getActivite(typeId);
+    const totalDist = sessions.reduce((s,v)=>s+(v.distance||0),0);
+    const totalDur  = sessions.reduce((s,v)=>s+v.duree,0);
+    const totalKcal = sessions.reduce((s,v)=>s+veloKcal(v),0);
+    const nb = sessions.length;
+
+    const cardId = 'sport_card_'+typeId;
+    const chartDistId = 'sport_chartDist_'+typeId;
+    const chartKcalId = 'sport_chartKcal_'+typeId;
+    const chartVitId  = 'sport_chartVit_'+typeId;
+
+    // KPIs
+    const kpis = [
+      {l:'Sessions',       v:nb,                         u:'',          c:'#e8e8f0'},
+      {l:'Durée totale',   v:formatDuree(totalDur),      u:'',          c:'#f97316'},
+      {l:'Dépense totale', v:totalKcal.toLocaleString('fr-FR'), u:'kcal', c:'#4ade80'},
+      {l:'Moy/session',    v:nb?Math.round(totalKcal/nb):0, u:'kcal',   c:'#4ade80'},
+    ];
+    if(act.hasDist){
+      kpis.splice(1,0,{l:'Distance totale', v:totalDist.toFixed(1), u:'km', c:'#38bdf8'});
+      kpis.splice(2,0,{l:'Moy. distance',   v:nb?(totalDist/nb).toFixed(1):0, u:'km/session', c:'#38bdf8'});
+    }
+
+    const hasDist = act.hasDist && sessions.some(v=>v.distance>0);
+    const hasVit  = hasDist && sessions.length > 1;
+
+    const card = document.createElement('div');
+    card.className = 'chart-card';
+    card.style.marginTop = '16px';
+    card.innerHTML = `
+      <div class="chart-title" style="margin-bottom:16px">${act.icon} ${act.label}</div>
+      <div class="kpi-grid" style="margin-bottom:16px">
+        ${kpis.map(k=>`<div class="kpi-card"><div class="kpi-label">${k.l}</div><div class="kpi-value" style="color:${k.c}">${k.v}<span class="kpi-unit"> ${k.u}</span></div></div>`).join('')}
+      </div>
+      ${hasDist ? `<div style="position:relative;height:220px;margin-bottom:12px"><canvas id="${chartDistId}"></canvas></div>` : ''}
+      ${hasVit  ? `<div style="position:relative;height:160px;margin-bottom:12px"><canvas id="${chartVitId}"></canvas></div>` : ''}
+      <div style="position:relative;height:160px"><canvas id="${chartKcalId}"></canvas></div>
+    `;
+    container.appendChild(card);
+
+    const labels = sessions.map(v=>v.label);
+    const chartOpts = {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{backgroundColor:'rgba(10,10,20,0.95)',titleColor:'#f97316',bodyColor:'#fff',borderColor:'rgba(249,115,22,0.3)',borderWidth:1}},
+      scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.4)',font:{size:10},maxRotation:45}}}
+    };
+
+    // Graphique distance + durée
+    if(hasDist){
+      const c1 = document.getElementById(chartDistId);
+      if(c1) charts['sport_dist_'+typeId] = new Chart(c1.getContext('2d'),{type:'bar',
+        data:{labels,datasets:[
+          {label:'Distance (km)',data:sessions.map(v=>v.distance||0),backgroundColor:'rgba(56,189,248,0.6)',borderColor:'#38bdf8',borderWidth:1,borderRadius:3,yAxisID:'yDist'},
+          {label:'Durée (min)',data:sessions.map(v=>v.duree),type:'line',borderColor:'#f97316',fill:false,tension:0.4,pointRadius:3,pointBackgroundColor:'#f97316',borderWidth:2,yAxisID:'yDur'}
+        ]},
+        options:{...chartOpts, scales:{
           yDist:{position:'left',grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.4)',font:{size:10}},title:{display:true,text:'km',color:'#38bdf8',font:{size:10}}},
           yDur:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'rgba(255,255,255,0.4)',font:{size:10}},title:{display:true,text:'min',color:'#f97316',font:{size:10}}},
-          x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.4)',font:{size:10},maxRotation:45}}
-        }
-      }
-    });
-  }
-  // Graph vitesse moyenne
-  if(charts['vitesse']){charts['vitesse'].destroy();delete charts['vitesse'];}
-  const cvs2=document.getElementById('chartVitesse');
-  if(cvs2&&filtered.length>1){
-    const vitesses=filtered.map(v=>v.duree>0?parseFloat((v.distance/(v.duree/60)).toFixed(2)):null);
-    const tendance=vitesses.map((_, i)=>{
-      const slice=vitesses.slice(Math.max(0,i-4),i+1).filter(x=>x!==null);
-      return slice.length?parseFloat((slice.reduce((a,b)=>a+b,0)/slice.length).toFixed(2)):null;
-    });
-    charts['vitesse']=new Chart(cvs2.getContext('2d'),{type:'line',
-      data:{labels:filtered.map(v=>v.label),datasets:[
-        {label:'Vitesse (km/h)',data:vitesses,borderColor:'rgba(56,189,248,0.25)',backgroundColor:'rgba(56,189,248,0.03)',fill:true,tension:0.3,pointRadius:2,pointBackgroundColor:'rgba(56,189,248,0.35)',borderWidth:1,spanGaps:true},
-        {label:'Tendance (moy. 5)',data:tendance,borderColor:'#f97316',backgroundColor:'transparent',fill:false,tension:0.4,pointRadius:0,borderWidth:2.5,spanGaps:true}
-      ]},
-      options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(10,10,20,0.95)',titleColor:'#f97316',bodyColor:'#fff',borderColor:'rgba(249,115,22,0.3)',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+' : '+ctx.parsed.y+' km/h'}}},
-        scales:{
-          y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.4)',font:{size:10}},title:{display:true,text:'km/h',color:'#f97316',font:{size:10}}},
-          x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.4)',font:{size:10},maxRotation:45}}
-        }
-      }
-    });
-  }
+          x:chartOpts.scales.x
+        }}
+      });
+    }
 
-  // Graph dépense calorique estimée (MET 7)
-  if(charts['veloKcal']){charts['veloKcal'].destroy();delete charts['veloKcal'];}
-  const cvs3=document.getElementById('chartVeloKcal');
-  if(cvs3&&filtered.length){
-    const kcalData=filtered.map(v=>veloKcal(v));
-    // Cumul glissant pour tendance
-    const kcalCumul=kcalData.map((_,i)=>kcalData.slice(0,i+1).reduce((a,b)=>a+b,0));
-    charts['veloKcal']=new Chart(cvs3.getContext('2d'),{type:'bar',
-      data:{labels:filtered.map(v=>v.label),datasets:[
-        {label:'Dépense (kcal)',data:kcalData,backgroundColor:'rgba(74,222,128,0.5)',borderColor:'#4ade80',borderWidth:1,borderRadius:3,yAxisID:'yKcal'},
-        {label:'Cumul (kcal)',data:kcalCumul,type:'line',borderColor:'rgba(74,222,128,0.4)',backgroundColor:'transparent',fill:false,tension:0.4,pointRadius:0,borderWidth:1.5,borderDash:[4,3],yAxisID:'yCumul'}
-      ]},
-      options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(10,10,20,0.95)',titleColor:'#4ade80',bodyColor:'#fff',borderColor:'rgba(74,222,128,0.3)',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+' : '+Math.round(ctx.parsed.y).toLocaleString('fr-FR')+' kcal'}}},
-        scales:{
+    // Graphique vitesse
+    if(hasVit){
+      const c2 = document.getElementById(chartVitId);
+      if(c2){
+        const vitesses = sessions.map(v=>v.duree>0?parseFloat((v.distance/(v.duree/60)).toFixed(2)):null);
+        const tendance = vitesses.map((_,i)=>{
+          const sl=vitesses.slice(Math.max(0,i-4),i+1).filter(x=>x!==null);
+          return sl.length?parseFloat((sl.reduce((a,b)=>a+b,0)/sl.length).toFixed(2)):null;
+        });
+        charts['sport_vit_'+typeId] = new Chart(c2.getContext('2d'),{type:'line',
+          data:{labels,datasets:[
+            {label:'Vitesse (km/h)',data:vitesses,borderColor:'rgba(56,189,248,0.3)',fill:true,backgroundColor:'rgba(56,189,248,0.05)',tension:0.3,pointRadius:2,borderWidth:1,spanGaps:true},
+            {label:'Tendance',data:tendance,borderColor:'#f97316',fill:false,tension:0.4,pointRadius:0,borderWidth:2.5,spanGaps:true}
+          ]},
+          options:{...chartOpts, scales:{
+            y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.4)',font:{size:10}},title:{display:true,text:'km/h',color:'#f97316',font:{size:10}}},
+            x:chartOpts.scales.x
+          }}
+        });
+      }
+    }
+
+    // Graphique calories
+    const c3 = document.getElementById(chartKcalId);
+    if(c3){
+      const kcalData = sessions.map(v=>veloKcal(v));
+      const kcalCumul = kcalData.map((_,i)=>kcalData.slice(0,i+1).reduce((a,b)=>a+b,0));
+      charts['sport_kcal_'+typeId] = new Chart(c3.getContext('2d'),{type:'bar',
+        data:{labels,datasets:[
+          {label:'Dépense (kcal)',data:kcalData,backgroundColor:'rgba(74,222,128,0.5)',borderColor:'#4ade80',borderWidth:1,borderRadius:3,yAxisID:'yKcal'},
+          {label:'Cumul (kcal)',data:kcalCumul,type:'line',borderColor:'rgba(74,222,128,0.4)',fill:false,tension:0.4,pointRadius:0,borderWidth:1.5,borderDash:[4,3],yAxisID:'yCumul'}
+        ]},
+        options:{...chartOpts, scales:{
           yKcal:{position:'left',grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.4)',font:{size:10}},title:{display:true,text:'kcal/session',color:'#4ade80',font:{size:10}}},
           yCumul:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'rgba(255,255,255,0.15)',font:{size:10}},title:{display:true,text:'cumul kcal',color:'rgba(74,222,128,0.4)',font:{size:10}}},
-          x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.4)',font:{size:10},maxRotation:45}}
-        }
-      }
-    });
-  }
+          x:chartOpts.scales.x
+        }}
+      });
+    }
+  });
 
-  const listEl=document.getElementById('veloList');
-  const titleEl=document.getElementById('veloListTitle');
-  if(titleEl) titleEl.textContent='Sessions enregistrées ('+veloSessions.length+')';
+  // Liste des sessions (dans saisievelo)
+  const listEl = document.getElementById('veloList');
+  const titleEl = document.getElementById('veloListTitle');
+  if(titleEl) titleEl.textContent = 'Sessions enregistrées ('+filtered.length+')';
   if(listEl){
-    if(!veloSessions.length){listEl.innerHTML='<p class="empty-msg">Aucune session.</p>';return;}
-    listEl.innerHTML=veloSessions.slice().reverse().map((v,ri)=>{
-      const idx=veloSessions.length-1-ri;
-      const kcal=veloKcal(v);
-      const act=getActivite(v.type||'velo_interieur');
-      const poids=getPoidsAvantDate(v.date);
-      const distStr = act.hasDist && v.distance ? v.distance+' km' : '—';
-      return '<div class="day-row"><span class="day-date">'+v.label+'</span>'
-        +'<span style="font-size:11px;color:rgba(255,255,255,0.4);min-width:130px">'+act.icon+' '+act.label+'</span>'
-        +'<span style="color:#38bdf8;font-family:\'Space Mono\',monospace;font-size:13px;min-width:65px">'+distStr+'</span>'
-        +'<span style="color:#f97316;font-family:\'Space Mono\',monospace;font-size:13px;min-width:65px">'+v.duree+' min</span>'
-        +'<span style="color:#4ade80;font-family:\'Space Mono\',monospace;font-size:12px;min-width:75px">~'+kcal+' kcal</span>'
-        +'<span style="color:rgba(255,255,255,0.2);font-size:11px;min-width:55px">'+poids+'kg</span>'
-        +'<button class="day-del" onclick="deleteVelo('+idx+')">\u00d7</button></div>';
-    }).join('');
+    if(!filtered.length){
+      listEl.innerHTML='<p class="empty-msg">Aucune session enregistrée.</p>';
+    } else {
+      listEl.innerHTML = filtered.slice().reverse().map(function(v,ri){
+        const idx = veloSessions.indexOf(v);
+        const kcal = veloKcal(v);
+        const act = getActivite(v.type||'velo_interieur');
+        const poids = getPoidsAvantDate(v.date);
+        const distStr = act.hasDist && v.distance ? v.distance+' km' : '—';
+        return '<div class="day-row">'
+          +'<span class="day-date">'+v.label+'</span>'
+          +'<span style="font-size:11px;color:rgba(255,255,255,0.4);min-width:130px">'+act.icon+' '+act.label+'</span>'
+          +'<span style="color:#38bdf8;font-family:monospace;font-size:13px;min-width:65px">'+distStr+'</span>'
+          +'<span style="color:#f97316;font-family:monospace;font-size:13px;min-width:65px">'+v.duree+' min</span>'
+          +'<span style="color:#4ade80;font-family:monospace;font-size:12px;min-width:75px">~'+kcal+' kcal</span>'
+          +'<span style="color:rgba(255,255,255,0.2);font-size:11px;min-width:55px">'+poids+'kg</span>'
+          +'<button class="day-del" onclick="deleteVelo('+idx+')">\u00d7</button>'
+          +'</div>';
+      }).join('');
+    }
   }
-}
-
-const ACTIVITES = [
-  { id:'velo_interieur', label:'Vélo intérieur',   icon:'🚴', met:4,   hasDist:true  },
-  { id:'velo_exterieur', label:'Vélo extérieur',   icon:'🚵', met:8,   hasDist:true  },
-  { id:'course',         label:'Course à pied',    icon:'🏃', met:8,   hasDist:true  },
-  { id:'marche',         label:'Marche rapide',    icon:'🚶', met:4.5, hasDist:true  },
-  { id:'natation',       label:'Natation',         icon:'🏊', met:7,   hasDist:false },
-  { id:'musculation',    label:'Musculation',      icon:'🏋️', met:5,   hasDist:false },
-  { id:'autre',          label:'Autre',            icon:'⚡', met:5,   hasDist:false },
-];
-function getActivite(id){ return ACTIVITES.find(a=>a.id===id) || ACTIVITES[0]; }
-
-function getPoidsAvantDate(dateStr){
-  // Retourne la dernière pesée réelle enregistrée avant ou à dateStr, sinon poids paramètre
-  const avant = pesees.filter(function(p){ return p.date <= dateStr; });
-  if(avant.length) return avant[avant.length-1].val;
-  return getPoids();
-}
-
-function veloKcal(session){
-  const poids = getPoidsAvantDate(session.date);
-  const act = getActivite(session.type || 'velo_interieur');
-  const met = (session.type==='autre' && session.metCustom) ? session.metCustom : act.met;
-  return Math.round(met * poids * (session.duree / 60));
 }
 
 function setPeriod(period, btn){
