@@ -2863,7 +2863,7 @@ function searchCiqual(q){
     const badge = r.source === 'perso'
       ? '<span style="font-size:9px;background:rgba(249,115,22,0.2);color:rgba(249,115,22,0.8);padding:1px 5px;border-radius:4px;margin-right:4px">perso</span>'
       : '<span style="font-size:9px;background:rgba(56,189,248,0.1);color:rgba(56,189,248,0.5);padding:1px 5px;border-radius:4px;margin-right:4px">ciqual</span>';
-    const usageBadge = r.usage >= 2 ? '<span style="font-size:9px;color:rgba(255,255,255,0.2);margin-left:4px">×'+r.usage+'</span>' : '';
+    const usageBadge = ''; // usage count hidden but still tracked
     return '<div class="ciqual-item" data-idx="'+i+'" onclick="selectCalcItem('+i+')" style="padding:8px 12px;cursor:pointer;font-size:12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.04)">'
       + '<span>'+badge+r.nom+usageBadge+'</span>'
       + '<span style="color:rgba(255,255,255,0.35);font-family:\'Space Mono\',monospace;font-size:11px;white-space:nowrap;margin-left:8px">'+r.kcal100+' kcal/100g</span>'
