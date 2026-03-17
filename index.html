@@ -288,7 +288,7 @@
 
   <!-- DASHBOARD -->
   <div id="dashboard" class="panel active">
-    <div id="tdeeWarning" style="display:none;background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.4);border-left:3px solid #f97316;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div id="tdeeWarning" style="display:none;background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.4);border-left:3px solid #f97316;border-radius:8px;padding:12px 16px;margin-bottom:16px;align-items:center;justify-content:space-between;gap:12px">
       <div>
         <div style="font-size:13px;font-weight:700;color:#f97316;margin-bottom:3px">⚠️ Configuration initiale requise</div>
         <div style="font-size:12px;color:rgba(255,255,255,0.5)">Renseignez vos paramètres dans Besoin journalier pour que les calculs soient corrects (poids, taille, âge).</div>
@@ -502,7 +502,7 @@
         <div style="flex:1">
           <div class="total-label">Total de la journée</div>
           <div style="font-size:13px;color:rgba(255,255,255,0.3);margin-top:4px" id="calcVsObjectif"></div>
-          <div id="calcMacroTotals" style="display:none;margin-top:10px;display:flex;gap:10px;flex-wrap:wrap"></div>
+          <div id="calcMacroTotals" style="display:none;margin-top:10px;gap:10px;flex-wrap:wrap"></div>
         </div>
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
           <div class="total-value" id="calcTotalVal">0 kcal</div>
@@ -1189,7 +1189,7 @@
         <span style="display:flex;align-items:center;gap:5px;color:rgba(255,255,255,0.3);font-size:11px;padding:3px 0" id="legendMoyGliss">
           <span style="width:14px;height:2px;border-top:2px dashed rgba(255,255,255,0.3);display:inline-block"></span>Moy. 7j
         </span>
-        <span style="display:flex;align-items:center;gap:5px;color:rgba(255,255,255,0.3);font-size:11px;padding:3px 0" id="legendPoints" style="display:none">
+        <span style="display:none;align-items:center;gap:5px;color:rgba(255,255,255,0.3);font-size:11px;padding:3px 0" id="legendPoints">
           <span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.25);display:inline-block"></span>Points
         </span>
       </div>
@@ -6489,7 +6489,7 @@ function renderObjectifBanner(){
     <div style="background:rgba(129,140,248,0.07);border:1px solid rgba(129,140,248,0.25);border-radius:12px;padding:14px 18px">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
         <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.8)">🎯 Objectif : ${st.poidsTarget} kg</span>
+          <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.8)">🎯 Objectif</span>
           <span style="font-family:'Space Mono',monospace;font-size:11px;color:${barColor};background:rgba(129,140,248,0.1);padding:2px 8px;border-radius:20px">${st.pct}%</span>
         </div>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
