@@ -1,7 +1,7 @@
 {
-  "name": "CalorieTrack",
-  "short_name": "CalorieTrack",
-  "description": "Suivi calorique quotidien et prévisions de poids",
+  "name": "Mon Suivi Santé",
+  "short_name": "Suivi Santé",
+  "description": "Suivi calorique, poids, sport, bilans sanguins et tension artérielle — données locales chiffrées",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#050508",
