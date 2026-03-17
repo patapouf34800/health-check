@@ -278,6 +278,7 @@
     <button class="sidebar-tab" onclick="showTab('tdee',this)">🔥 Besoin journalier</button>
     <button class="sidebar-tab" onclick="showTab('correlations',this)">🔗 Corrélations</button>
     <button class="sidebar-tab" onclick="showTab('documents',this)">📄 Rapports PDF</button>
+    <button class="sidebar-tab" onclick="showTab('reset_data',this)">🗑 Remise à zéro</button>
   </div>
 </nav>
 
@@ -5949,6 +5950,82 @@ function updateEditModeBanner(){
 function deleteDay(i){ if(!confirm('Supprimer l\'entrée du '+days[i].label+' ?')) return; days.splice(i,1); refresh(); saveData(); }
 function clearAll(){ if(confirm('Effacer toutes les données ?')){ days=[]; refresh(); saveData(); } }
 
+/* ── REMISES À ZÉRO ── */
+function resetCategorie(cat){
+  const labels = {
+    repas:    'les repas, macros et pesées de poids',
+    sport:    'toutes les sessions sportives',
+    sante:    'les bilans sanguins, tensions et snapshots hebdo',
+    aliments: 'les références, recettes et historique d\'usage',
+  };
+  if(!confirm('Effacer ' + labels[cat] + ' ?\nCette opération ne peut pas être annulée.')) return;
+
+  if(cat === 'repas'){
+    days = [];
+    pesees = [];
+    calcItems = [];
+    window._weeklySnapshots = [];
+    window._savedCalcDate = null;
+    const cd = document.getElementById('calcDate'); if(cd) cd.value = '';
+  }
+  if(cat === 'sport'){
+    veloSessions = [];
+  }
+  if(cat === 'sante'){
+    bilans = [];
+    tensions = [];
+    window._weeklySnapshots = [];
+    window._bilanUnites = {};
+    _conditionsActives = [];
+  }
+  if(cat === 'aliments'){
+    refs = [];
+    recettes = [];
+    refNextId = 100;
+    recetteNextId = 1;
+    usageCount = {};
+    calcItems = calcItems.filter(function(){ return false; });
+  }
+
+  refresh(); saveData();
+
+  // Feedback
+  const btn = event.target;
+  const orig = btn.textContent;
+  btn.textContent = '✓ Effacé';
+  btn.style.color = '#22c55e';
+  btn.style.borderColor = 'rgba(34,197,94,0.4)';
+  setTimeout(function(){ btn.textContent = orig; btn.style.color = ''; btn.style.borderColor = ''; }, 2000);
+}
+
+function resetTotal(){
+  // Étape 1 : avertissement avec rappel export
+  if(!confirm('⚠️ REMISE À ZÉRO COMPLÈTE\n\nCeci effacera absolument toutes vos données.\n\nAvez-vous exporté une sauvegarde ? (bouton ⬇ Exporter dans le menu)\n\nContinuer ?')) return;
+  // Étape 2 : confirmation finale par saisie
+  const saisie = prompt('Pour confirmer, tapez EFFACER en majuscules :');
+  if(saisie !== 'EFFACER') { if(saisie !== null) alert('Annulé — le mot saisi ne correspond pas.'); return; }
+
+  days = [];
+  pesees = [];
+  veloSessions = [];
+  bilans = [];
+  tensions = [];
+  refs = [];
+  recettes = [];
+  calcItems = [];
+  usageCount = {};
+  refNextId = 100;
+  recetteNextId = 1;
+  window._weeklySnapshots = [];
+  window._bilanUnites = {};
+  _conditionsActives = [];
+  window._savedCalcDate = null;
+  const cd = document.getElementById('calcDate'); if(cd) cd.value = '';
+
+  refresh(); saveData();
+  alert('✓ Toutes les données ont été effacées.');
+}
+
 /* ── PESÉES ── */
 let pesees=[];
 let veloSessions=[];
@@ -6404,7 +6481,65 @@ if('serviceWorker' in navigator){
 }
 </script>
 
-<!-- MODALE AIDE -->
+<!-- REMISE À ZÉRO -->
+<div id="reset_data" class="panel">
+
+  <!-- Resets par catégorie -->
+  <div class="chart-card">
+    <div class="chart-title" style="margin-bottom:4px">Remise à zéro par catégorie</div>
+    <p style="font-size:12px;color:rgba(255,255,255,0.3);margin-bottom:20px">Efface uniquement les données de la catégorie choisie. Les autres restent intactes.</p>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+
+      <!-- Repas & poids -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:13px;font-weight:500;margin-bottom:3px">🍽️ Repas & pesées</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.3)">Historique journalier des calories, items et macros · Pesées de poids</div>
+        </div>
+        <button onclick="resetCategorie('repas')" class="btn btn-secondary" style="border-color:rgba(239,68,68,0.35);color:#ef4444;background:rgba(239,68,68,0.07);white-space:nowrap">🗑 Effacer</button>
+      </div>
+
+      <!-- Sport -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:13px;font-weight:500;margin-bottom:3px">🏃 Sport</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.3)">Toutes les sessions sportives enregistrées</div>
+        </div>
+        <button onclick="resetCategorie('sport')" class="btn btn-secondary" style="border-color:rgba(239,68,68,0.35);color:#ef4444;background:rgba(239,68,68,0.07);white-space:nowrap">🗑 Effacer</button>
+      </div>
+
+      <!-- Santé -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:13px;font-weight:500;margin-bottom:3px">🩺 Santé</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.3)">Bilans sanguins · Tension artérielle · Snapshots hebdo</div>
+        </div>
+        <button onclick="resetCategorie('sante')" class="btn btn-secondary" style="border-color:rgba(239,68,68,0.35);color:#ef4444;background:rgba(239,68,68,0.07);white-space:nowrap">🗑 Effacer</button>
+      </div>
+
+      <!-- Aliments -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:13px;font-weight:500;margin-bottom:3px">📚 Aliments</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.3)">Références personnelles · Recettes · Historique d'usage</div>
+        </div>
+        <button onclick="resetCategorie('aliments')" class="btn btn-secondary" style="border-color:rgba(239,68,68,0.35);color:#ef4444;background:rgba(239,68,68,0.07);white-space:nowrap">🗑 Effacer</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Reset général -->
+  <div class="chart-card" style="border-color:rgba(239,68,68,0.2)">
+    <div class="chart-title" style="margin-bottom:4px;color:#ef4444">⚠️ Remise à zéro complète</div>
+    <p style="font-size:12px;color:rgba(255,255,255,0.4);margin-bottom:6px">Efface <strong style="color:rgba(255,255,255,0.7)">absolument toutes</strong> les données : repas, poids, sport, santé, aliments, recettes, snapshots.</p>
+    <p style="font-size:12px;color:rgba(239,68,68,0.7);margin-bottom:20px">Pensez à exporter vos données d'abord via le bouton <strong>⬇ Exporter</strong> dans le menu.</p>
+    <button onclick="resetTotal()" class="btn" style="background:linear-gradient(135deg,#ef4444,#b91c1c)">🗑 Tout effacer</button>
+  </div>
+
+</div>
+
 <div id="aideModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.7);overflow-y:auto">
   <div style="max-width:720px;margin:40px auto 40px;background:#0e0e1a;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px 24px;position:relative;min-height:200px">
     <button onclick="document.getElementById('aideModal').style.display='none'"
