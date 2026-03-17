@@ -5677,7 +5677,7 @@ function renderBilanHebdo(){
       : alertes.join('');
 
     if(!isCurrentWeek && alertes.length > 0){
-      conseils += '<div style="font-size:11px;color:rgba(255,255,255,0.2);margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.05);font-style:italic">Analyse historique — ces observations concernent la semaine passée, non une recommandation active.</div>';
+      conseils += '<div style="font-size:11px;color:#ef4444;margin-top:12px;padding-top:10px;border-top:1px solid rgba(239,68,68,0.2);font-style:italic">⚠ Analyse historique — ces observations concernent la semaine passée, non une recommandation active.</div>';
     }
 
     if(bons.length > 0) conseils += '<div style="font-size:11px;color:rgba(255,255,255,0.25);margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.05)">'+bons.join(' · ')+'</div>';
