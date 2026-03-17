@@ -235,6 +235,7 @@
   <div class="sidebar-section">
     <div class="sidebar-section-label">Tableau de bord</div>
     <button class="sidebar-tab active" onclick="showTab('dashboard',this)">📊 Dashboard</button>
+    <button class="sidebar-tab" onclick="showTab('objectifs',this)">🎯 Objectifs</button>
     <button class="sidebar-tab" onclick="showTab('poids',this)">⚖️ Poids</button>
   </div>
 
@@ -297,7 +298,9 @@
         Configurer →
       </button>
     </div>
-    <div class="kpi-grid" id="kpiGrid"></div>
+    <div id="kpiGrid"></div>
+    <!-- Bannière objectif poids -->
+    <div id="objectifBanner" style="display:none"></div>
     <div class="chart-card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px">
         <div class="chart-title" style="margin-bottom:0" id="mainChartTitle">Calories consommées vs objectif</div>
@@ -313,6 +316,42 @@
         <div id="crosshairTooltip" style="position:absolute;top:10px;background:rgba(10,10,20,0.95);border:1px solid rgba(249,115,22,0.4);border-radius:8px;padding:8px 12px;pointer-events:none;display:none;white-space:nowrap;font-size:13px;z-index:10;font-family:sans-serif"></div>
       </div>
     </div>
+  </div>
+
+  <!-- OBJECTIFS -->
+  <div id="objectifs" class="panel">
+
+    <!-- Formulaire -->
+    <div class="chart-card">
+      <div class="chart-title" style="margin-bottom:16px">🎯 Définir un objectif de poids</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Poids cible (kg)</label>
+          <input type="number" id="objPoidsTarget" placeholder="ex : 72.0" step="0.1" style="width:100%"
+            oninput="renderObjectifCalc()">
+        </div>
+        <div class="form-group">
+          <label>Date limite</label>
+          <input type="date" id="objDateTarget" onchange="renderObjectifCalc()">
+        </div>
+        <button class="btn" onclick="saveObjectif()">Enregistrer</button>
+        <button class="btn btn-secondary" onclick="clearObjectif()" id="btnClearObjectif" style="display:none;border-color:rgba(239,68,68,0.3);color:#ef4444;background:rgba(239,68,68,0.07)">Supprimer</button>
+      </div>
+      <p style="font-size:11px;color:rgba(255,255,255,0.2);margin-top:8px">Le poids de départ utilisé est la dernière pesée enregistrée (ou le poids initial si aucune pesée).</p>
+    </div>
+
+    <!-- Résultats calculés -->
+    <div class="chart-card" id="objectifResultCard" style="display:none">
+      <div class="chart-title" style="margin-bottom:16px">📐 Analyse de l'objectif</div>
+      <div id="objectifResultContent"></div>
+    </div>
+
+    <!-- Progression actuelle -->
+    <div class="chart-card" id="objectifProgressCard" style="display:none">
+      <div class="chart-title" style="margin-bottom:16px">📈 Progression</div>
+      <div id="objectifProgressContent"></div>
+    </div>
+
   </div>
 
   <!-- DEFICIT -->
@@ -1832,7 +1871,7 @@ function saveData(){
     taille: tdeeTailleEl ? parseInt(tdeeTailleEl.value)||175 : 175,
     activite: tdeeActiviteEl ? parseFloat(tdeeActiviteEl.value)||1.2 : 1.2
   };
-  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, activePeriod, calcDate: calcDateVal, poids: getPoids(), objectif: getObjectif(), bilans, bilanUnites: window._bilanUnites||{}, tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount, conditionsActives: _conditionsActives };
+  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, activePeriod, calcDate: calcDateVal, poids: getPoids(), objectif: getObjectif(), bilans, bilanUnites: window._bilanUnites||{}, tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount, conditionsActives: _conditionsActives, objectifPoids: _objectifPoids||null };
   try {
     if (window._masterKey) {
       // Sauvegarde chiffrée
@@ -1883,9 +1922,7 @@ async function loadData(){
     else if(data.lastWeekBilanSnapshot) window._weeklySnapshots = [data.lastWeekBilanSnapshot]; // migration ancien format
     if(data.usageCount) usageCount = data.usageCount;
     if(data.conditionsActives) _conditionsActives = data.conditionsActives;
-    if(data.calcDate) window._savedCalcDate = data.calcDate;
-    if(data.recettes){ recettes = data.recettes; recetteNextId = data.recetteNextId || recettes.length+1; }
-    // Bug 3 fix : utiliser _calc uniquement si la clé principale n'a pas de calcItems
+    if(data.objectifPoids) _objectifPoids = data.objectifPoids;
     try {
       let calcRaw = localStorage.getItem(STORAGE_KEY_ENC+'_calc');
       if (calcRaw && window._masterKey) {
@@ -1971,7 +2008,7 @@ async function exportDataChiffre(){
   };
   const calcDateEl2 = document.getElementById('calcDate');
   const calcDateVal2 = (calcDateEl2 && calcDateEl2.value) ? calcDateEl2.value : (window._savedCalcDate || '');
-  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, calcDate: calcDateVal2, activePeriod, bilans, bilanUnites: window._bilanUnites||{}, poids: getPoids(), objectif: getObjectif(), tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount, conditionsActives: _conditionsActives, exportDate: new Date().toISOString() };
+  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, calcDate: calcDateVal2, activePeriod, bilans, bilanUnites: window._bilanUnites||{}, poids: getPoids(), objectif: getObjectif(), tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount, conditionsActives: _conditionsActives, objectifPoids: _objectifPoids||null, exportDate: new Date().toISOString() };
 
   try {
     const encrypted = await cryptoEncrypt(JSON.stringify(data), pwd);
@@ -1996,7 +2033,7 @@ function exportData(){
   };
   const calcDateEl2 = document.getElementById('calcDate');
   const calcDateVal2 = (calcDateEl2 && calcDateEl2.value) ? calcDateEl2.value : (window._savedCalcDate || '');
-  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, calcDate: calcDateVal2, activePeriod, bilans, bilanUnites: window._bilanUnites||{}, poids: getPoids(), objectif: getObjectif(), tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount, conditionsActives: _conditionsActives, exportDate: new Date().toISOString() };
+  const data = { days, pesees, veloSessions, refs, refNextId, calcItems, calcDate: calcDateVal2, activePeriod, bilans, bilanUnites: window._bilanUnites||{}, poids: getPoids(), objectif: getObjectif(), tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount, conditionsActives: _conditionsActives, objectifPoids: _objectifPoids||null, exportDate: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2067,8 +2104,7 @@ function importData(event){
       else if(data.lastWeekBilanSnapshot) window._weeklySnapshots = [data.lastWeekBilanSnapshot];
       if(data.usageCount) usageCount = data.usageCount;
       if(data.conditionsActives) _conditionsActives = data.conditionsActives;
-      if(data.recettes){ recettes = data.recettes; recetteNextId = data.recetteNextId || recettes.length+1; }
-      // Calcul auto ratios
+      if(data.objectifPoids) _objectifPoids = data.objectifPoids;
       bilans.forEach(b => {
         const lip = b.marqueurs && b.marqueurs.bilan_lipidique;
         if(lip && lip.HDL && lip.cholesterol_total && !lip.ratio_CHOL_HDL){
@@ -2101,7 +2137,7 @@ function importData(event){
 
 function refresh(){
   const s=computeStats();
-  renderKPI(s); renderChartMain(s); renderChartDeficit(s); renderChartPoids(s);
+  renderKPI(s); renderChartMain(s); renderChartDeficit(s); renderChartPoids(s); renderObjectifBanner();
   renderSaisieList(s); renderPoidsCards(s);
   renderRefs(); renderCalcSelect(); renderCalcItems(); renderPeseeList(); renderVelo(); renderBilans(); renderAllSanteSections(); renderDocuments(); renderRecettes();
   initCorrMarqueur();
@@ -6030,6 +6066,7 @@ function showTab(id,btn){
   if(id==='documents') renderDocuments();
   if(id==='correlations'){ initCorrMarqueur(); renderCorrelations(); }
   if(id==='sante_surveiller') renderSurveiller();
+  if(id==='objectifs') renderObjectifPanel();
   if(id==='tension') renderTension();
   if(id==='tdee'){
     const lastPesee = pesees.length ? pesees[pesees.length-1].val : getPoids();
@@ -6259,6 +6296,7 @@ function resetTotal(){
   window._weeklySnapshots = [];
   window._bilanUnites = {};
   _conditionsActives = [];
+  _objectifPoids = null;
   window._savedCalcDate = null;
   const cd = document.getElementById('calcDate'); if(cd) cd.value = '';
 
@@ -6276,6 +6314,193 @@ function resetTotal(){
 
   refresh(); saveData();
   alert('✓ Toutes les données ont été effacées.');
+}
+
+/* ── OBJECTIF POIDS ── */
+var _objectifPoids = null; // { poidsTarget, dateTarget } ou null
+
+function getPoidsActuelReel(){
+  // Dernière pesée réelle, sinon poids initial
+  return pesees.length ? pesees[pesees.length-1].val : getPoids();
+}
+
+function getObjectifStats(){
+  if(!_objectifPoids) return null;
+  const { poidsTarget, dateTarget } = _objectifPoids;
+  const poidsDepart = getPoidsActuelReel();
+  const aPerdreTot = poidsDepart - poidsTarget; // positif = perte, négatif = prise
+  const today = new Date(); today.setHours(0,0,0,0);
+  const deadline = new Date(dateTarget+'T00:00:00');
+  const joursRestants = Math.round((deadline - today) / 86400000);
+  const kcalTotNecessaire = aPerdreTot * KCAL_PER_KG;
+  const deficitJourNecessaire = joursRestants > 0 ? Math.round(kcalTotNecessaire / joursRestants) : null;
+  // Progression : poids perdu depuis le départ de l'objectif
+  const poidsDepart0 = _objectifPoids.poidsDepart || poidsDepart; // figé à la création
+  const perdu = poidsDepart0 - getPoidsActuelReel();
+  const aTotalFiger = poidsDepart0 - poidsTarget;
+  const pct = aTotalFiger !== 0 ? Math.max(0, Math.min(100, Math.round(perdu / aTotalFiger * 100))) : 100;
+  // Rythme actuel (déficit moyen 14j)
+  const recent14 = days.slice(-14).filter(d => d.p!=null||d.calories>0);
+  const deficitMoyActuel = recent14.length >= 3
+    ? recent14.reduce((s,d) => s+(d.objectif-d.calories), 0) / recent14.length
+    : null;
+  const joursAvecRythme = deficitMoyActuel && deficitMoyActuel > 0
+    ? Math.round(aTotalFiger * KCAL_PER_KG / deficitMoyActuel)
+    : null;
+  const dateAvecRythme = joursAvecRythme != null ? (() => {
+    const d = new Date(); d.setDate(d.getDate() + joursAvecRythme);
+    return d.toLocaleDateString('fr-FR', {day:'2-digit', month:'short', year:'numeric'});
+  })() : null;
+  // Faisabilité : déficit > 1000 kcal/j = risqué, > 500 = agressif
+  let faisabilite = 'ok';
+  if(deficitJourNecessaire !== null){
+    if(Math.abs(deficitJourNecessaire) > 1000) faisabilite = 'risque';
+    else if(Math.abs(deficitJourNecessaire) > 600) faisabilite = 'agressif';
+  }
+  return { poidsDepart: poidsDepart0, poidsTarget, dateTarget, aPerdreTot, joursRestants,
+    deficitJourNecessaire, pct, perdu, aTotalFiger, deficitMoyActuel, joursAvecRythme,
+    dateAvecRythme, faisabilite };
+}
+
+function saveObjectif(){
+  const t = parseFloat(document.getElementById('objPoidsTarget').value);
+  const d = document.getElementById('objDateTarget').value;
+  if(!t || t <= 0 || !d){ alert('Merci de renseigner un poids cible et une date.'); return; }
+  const today = new Date().toISOString().split('T')[0];
+  if(d <= today){ alert('La date limite doit être dans le futur.'); return; }
+  _objectifPoids = { poidsTarget: t, dateTarget: d, poidsDepart: getPoidsActuelReel() };
+  saveData();
+  renderObjectifPanel();
+  renderObjectifBanner();
+}
+
+function clearObjectif(){
+  if(!confirm('Supprimer l\'objectif de poids ?')) return;
+  _objectifPoids = null;
+  document.getElementById('objPoidsTarget').value = '';
+  document.getElementById('objDateTarget').value = '';
+  saveData();
+  renderObjectifPanel();
+  renderObjectifBanner();
+}
+
+function renderObjectifCalc(){
+  // Aperçu en temps réel sans sauvegarder
+  const t = parseFloat(document.getElementById('objPoidsTarget').value);
+  const d = document.getElementById('objDateTarget').value;
+  const card = document.getElementById('objectifResultCard');
+  if(!t || !d || t<=0){ if(card) card.style.display='none'; return; }
+  const today = new Date().toISOString().split('T')[0];
+  if(d <= today){ if(card) card.style.display='none'; return; }
+  // Calcul preview (sans poidsDepart figé)
+  const poidsDepart = getPoidsActuelReel();
+  const aPerdreTot = poidsDepart - t;
+  const deadline = new Date(d+'T00:00:00');
+  const now = new Date(); now.setHours(0,0,0,0);
+  const joursRestants = Math.round((deadline - now) / 86400000);
+  const deficitJour = joursRestants > 0 ? Math.round(aPerdreTot * KCAL_PER_KG / joursRestants) : null;
+  renderObjectifResult(card, { poidsDepart, poidsTarget:t, aPerdreTot, joursRestants, deficitJourNecessaire:deficitJour,
+    faisabilite: deficitJour==null?'ok': Math.abs(deficitJour)>1000?'risque':Math.abs(deficitJour)>600?'agressif':'ok' });
+}
+
+function renderObjectifResult(card, st){
+  if(!card) return;
+  card.style.display = 'block';
+  const sens = st.aPerdreTot >= 0 ? 'Perte' : 'Prise';
+  const couleurSens = st.aPerdreTot >= 0 ? '#22c55e' : '#38bdf8';
+  const faisMap = { ok:['#22c55e','✓ Objectif réaliste'], agressif:['#f97316','⚠ Rythme agressif (>600 kcal/j)'], risque:['#ef4444','✗ Rythme risqué (>1000 kcal/j) — non recommandé'] };
+  const [fc, fl] = faisMap[st.faisabilite];
+  const kpiStyle = 'flex:1;min-width:140px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:14px 16px';
+  document.getElementById('objectifResultContent').innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      <div style="${kpiStyle}"><div style="font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">${sens} totale</div>
+        <div style="font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:${couleurSens}">${Math.abs(st.aPerdreTot).toFixed(1)} kg</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:3px">${st.poidsDepart.toFixed(1)} → ${st.poidsTarget.toFixed(1)} kg</div>
+      </div>
+      <div style="${kpiStyle}"><div style="font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Jours restants</div>
+        <div style="font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:#818cf8">${st.joursRestants}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:3px">${new Date(st.dateTarget+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})}</div>
+      </div>
+      <div style="${kpiStyle}"><div style="font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Déficit/j nécessaire</div>
+        <div style="font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:${fc}">${st.deficitJourNecessaire!=null ? Math.abs(st.deficitJourNecessaire).toLocaleString('fr-FR')+' kcal' : '—'}</div>
+        <div style="font-size:11px;color:${fc};margin-top:3px">${fl}</div>
+      </div>
+    </div>
+    ${st.faisabilite==='risque'?`<div style="font-size:12px;color:#ef4444;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:10px 14px">Un déficit de plus de 1 000 kcal/j entraîne une perte musculaire importante et des carences. Envisagez une date limite plus éloignée.</div>`:''}
+  `;
+}
+
+function renderObjectifPanel(){
+  const hasObj = !!_objectifPoids;
+  const btnClear = document.getElementById('btnClearObjectif');
+  const progressCard = document.getElementById('objectifProgressCard');
+  const resultCard = document.getElementById('objectifResultCard');
+  if(btnClear) btnClear.style.display = hasObj ? '' : 'none';
+  if(!hasObj){
+    if(progressCard) progressCard.style.display = 'none';
+    if(resultCard) resultCard.style.display = 'none';
+    return;
+  }
+  // Pré-remplir le formulaire
+  document.getElementById('objPoidsTarget').value = _objectifPoids.poidsTarget;
+  document.getElementById('objDateTarget').value = _objectifPoids.dateTarget;
+  // Afficher résultats + progression
+  const st = getObjectifStats();
+  if(!st) return;
+  renderObjectifResult(resultCard, st);
+  // Progression
+  if(progressCard){
+    progressCard.style.display = 'block';
+    const pct = st.pct;
+    const barColor = pct >= 75 ? '#22c55e' : pct >= 40 ? '#f97316' : '#818cf8';
+    const rythmeTxt = st.deficitMoyActuel != null
+      ? `Rythme actuel : <strong>${Math.round(st.deficitMoyActuel).toLocaleString('fr-FR')} kcal/j</strong> de déficit moyen (14j).`
+      + (st.dateAvecRythme ? ` À ce rythme, objectif atteint le <strong>${st.dateAvecRythme}</strong>.` : '')
+      : 'Pas assez de données récentes pour estimer le rythme actuel.';
+    document.getElementById('objectifProgressContent').innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+        <div style="font-size:13px;color:rgba(255,255,255,0.6)">${st.poidsDepart.toFixed(1)} kg → ${st.poidsTarget.toFixed(1)} kg</div>
+        <div style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:${barColor}">${pct}%</div>
+      </div>
+      <div style="height:12px;background:rgba(255,255,255,0.06);border-radius:6px;overflow:hidden;margin-bottom:14px">
+        <div style="height:100%;width:${pct}%;background:${barColor};border-radius:6px;transition:width .4s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.3);margin-bottom:16px">
+        <span>Perdu : ${st.perdu >= 0 ? st.perdu.toFixed(2) : '0.00'} kg</span>
+        <span>Restant : ${Math.max(0, st.aPerdreTot - st.perdu).toFixed(2)} kg</span>
+        <span>${st.joursRestants > 0 ? st.joursRestants+' jours' : '⚠ Délai dépassé'}</span>
+      </div>
+      <p style="font-size:12px;color:rgba(255,255,255,0.45);line-height:1.6">${rythmeTxt}</p>
+    `;
+  }
+}
+
+function renderObjectifBanner(){
+  const el = document.getElementById('objectifBanner');
+  if(!el) return;
+  if(!_objectifPoids){ el.style.display='none'; return; }
+  const st = getObjectifStats();
+  if(!st || st.joursRestants <= 0){ el.style.display='none'; return; }
+  const barColor = st.pct >= 75 ? '#22c55e' : st.pct >= 40 ? '#f97316' : '#818cf8';
+  el.style.display = 'block';
+  el.style.marginBottom = '16px';
+  el.innerHTML = `
+    <div style="background:rgba(129,140,248,0.07);border:1px solid rgba(129,140,248,0.25);border-radius:12px;padding:14px 18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.8)">🎯 Objectif : ${st.poidsTarget} kg</span>
+          <span style="font-family:'Space Mono',monospace;font-size:11px;color:${barColor};background:rgba(129,140,248,0.1);padding:2px 8px;border-radius:20px">${st.pct}%</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          ${st.deficitJourNecessaire!=null?`<span style="font-size:12px;color:rgba(255,255,255,0.4)">Déficit/j nécessaire : <strong style="color:rgba(255,255,255,0.7)">${Math.abs(st.deficitJourNecessaire).toLocaleString('fr-FR')} kcal</strong></span>`:''}
+          <span style="font-size:12px;color:rgba(255,255,255,0.35)">${st.joursRestants} jours restants</span>
+          <button onclick="showTab('objectifs',document.querySelector('.sidebar-tab[onclick*=objectifs]'))" style="background:none;border:1px solid rgba(129,140,248,0.3);color:rgba(129,140,248,0.8);font-size:11px;font-family:inherit;padding:4px 10px;border-radius:6px;cursor:pointer">Détail →</button>
+        </div>
+      </div>
+      <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${st.pct}%;background:${barColor};border-radius:3px;transition:width .4s"></div>
+      </div>
+    </div>`;
 }
 
 /* ── PESÉES ── */
