@@ -421,6 +421,16 @@
 
   <!-- CALCULATEUR JOURNÉE -->
   <div id="calculateur" class="panel">
+
+    <!-- Bandeau mode édition -->
+    <div id="editModeBanner" style="display:none;background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.5);border-left:3px solid #f97316;border-radius:10px;padding:12px 18px;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#f97316;margin-bottom:2px">✏️ Mode édition</div>
+        <div id="editModeBannerText" style="font-size:12px;color:rgba(255,255,255,0.5)">Vous modifiez une journée existante — les repas ci-dessous remplaceront l'entrée actuelle.</div>
+      </div>
+      <button onclick="cancelEditMode()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.6);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap">✕ Annuler l'édition</button>
+    </div>
+
     <div class="chart-card">
       <div class="chart-title">Composer ma journée</div>
 
@@ -472,10 +482,10 @@
           <input type="text" id="calcNote" placeholder="ex: repas de fête, stress...">
         </div>
         <button class="btn btn-green" onclick="validerJournee()" id="btnValider" style="margin-top:22px">+ Ajouter au total du jour</button>
-        <button class="btn btn-secondary" onclick="resetJour()" style="margin-top:22px;font-size:11px;padding:6px 12px">↺ Remettre à zéro le jour</button>
+        <button class="btn btn-secondary" onclick="resetJour()" id="btnResetJour" style="margin-top:22px;font-size:11px;padding:6px 12px">↺ Remettre à zéro le jour</button>
         <button class="btn btn-secondary" onclick="clearCalc()" style="margin-top:22px">🗑 Vider</button>
       </div>
-      <p style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:12px">Le total sera automatiquement envoyé dans l'onglet Saisie.</p>
+      <p id="calcHintText" style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:12px">Le total sera automatiquement envoyé dans l'onglet Saisie.</p>
     </div>
 
     <div class="chart-card">
@@ -1206,6 +1216,7 @@ const KCAL_PER_KG = 7700;
 
 let days = [];
 let charts = {};
+var _editingDayIndex = null; // Mode édition journée dans le calculateur
 let refs = [
   { id:1, nom:'Riz jasmin cuit', kcal100:130 },
   { id:2, nom:'Poulet grillé', kcal100:165 },
@@ -2312,7 +2323,7 @@ function renderSaisieList(s){
       <span class="day-cal">${d.calories.toLocaleString('fr-FR')} kcal</span>
       <span class="day-def ${defClass(def)}">${defSign(def)}${Math.abs(Math.round(def)).toLocaleString('fr-FR')} kcal</span>
       ${d.note?'<span style="font-size:13px;opacity:0.5">📝</span>':''}
-      <button class="day-edit-btn" onclick="editDay(${i})" title="Modifier">✏️</button>
+      <button class="day-edit-btn" onclick="editDay(${i})" title="${d.items && d.items.length ? 'Modifier les repas ('+d.items.length+' aliment'+(d.items.length>1?'s':'')+')' : 'Modifier les calories'}${d.items && d.items.length ? '' : ''}">${d.items && d.items.length ? '🍽️' : '✏️'}</button>
       <button class="day-del" onclick="deleteDay(${i})">×</button>
     </div>`;
   }).join('') + (days.length > 7 ? `<div style="text-align:center;margin-top:10px">
@@ -2991,8 +3002,43 @@ function validerJournee(){
   const dateVal=document.getElementById('calcDate').value;
   if(!dateVal){alert('Merci de choisir une date.');return;}
   const label=new Date(dateVal).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
-  const existing=days.findIndex(d=>d.date===dateVal);
   const calcNoteVal=document.getElementById('calcNote').value.trim();
+
+  // ── MODE ÉDITION : remplacer la journée existante ──
+  if(_editingDayIndex !== null){
+    const i = _editingDayIndex;
+    if(!confirm('Remplacer les repas du '+days[i].label+' ? Cette action est irréversible.')) return;
+    // Recalculer les macros depuis les items
+    var tp=0,tg=0,tl=0,tf=0,hasMacro=false;
+    calcItems.forEach(function(item){
+      if(item.p!=null){tp+=item.p;hasMacro=true;}
+      if(item.g!=null){tg+=item.g;hasMacro=true;}
+      if(item.l!=null){tl+=item.l;hasMacro=true;}
+      if(item.f!=null){tf+=item.f;hasMacro=true;}
+    });
+    tp=Math.round(tp*10)/10; tg=Math.round(tg*10)/10;
+    tl=Math.round(tl*10)/10; tf=Math.round(tf*10)/10;
+    days[i].calories = total;
+    days[i].items = calcItems.map(function(item){ return Object.assign({},item); });
+    days[i].cibles = getNutriCibles();
+    if(hasMacro){ days[i].p=tp; days[i].g=tg; days[i].l=tl; days[i].f=tf; }
+    else { delete days[i].p; delete days[i].g; delete days[i].l; delete days[i].f; }
+    if(calcNoteVal) days[i].note=calcNoteVal; else delete days[i].note;
+    // Réinitialiser le mode édition
+    _editingDayIndex = null;
+    calcItems = [];
+    document.getElementById('calcNote').value = '';
+    updateEditModeBanner();
+    refresh(); saveData();
+    // Feedback
+    const btn=document.getElementById('btnValider');
+    btn.textContent='✓ Journée mise à jour !';
+    setTimeout(()=>{ btn.textContent='+ Ajouter au total du jour'; },2000);
+    return;
+  }
+
+  // ── MODE NORMAL ──
+  const existing=days.findIndex(d=>d.date===dateVal);
   // Sécurité date
   const todayStr = new Date().toISOString().split('T')[0];
   if(dateVal > todayStr){
@@ -3041,7 +3087,7 @@ function validerJournee(){
   // Feedback bouton
   const btn=document.getElementById('btnValider');
   btn.textContent='✓ Ajouté !';
-  setTimeout(()=>{btn.textContent='✓ Valider la journée';},2000);
+  setTimeout(()=>{btn.textContent='+ Ajouter au total du jour';},2000);
 }
 
 /* ── NAVIGATION ── */
@@ -5687,12 +5733,23 @@ function closeMobileMenu(){
 }
 
 function showTab(id,btn){
+  // Si on quitte le calculateur en mode édition avec des items, proposer d'annuler
+  if(id !== 'calculateur' && _editingDayIndex !== null){
+    if(calcItems.length > 0){
+      if(!confirm('Vous êtes en mode édition. Quitter le calculateur annulera les modifications. Continuer ?')){
+        return; // Rester sur le calculateur
+      }
+    }
+    _editingDayIndex = null;
+    calcItems = [];
+    updateEditModeBanner();
+  }
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sidebar-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   if(btn) btn.classList.add('active');
   if(id==='saisie') autoFillDate();
-  if(id==='calculateur'){ autoFillCalcDate(); refresh(); }
+  if(id==='calculateur'){ autoFillCalcDate(); updateEditModeBanner(); refresh(); }
   if(id in SANTE_SECTIONS) renderSanteSection(id);
   if(id==='documents') renderDocuments();
   if(id==='correlations'){ initCorrMarqueur(); renderCorrelations(); }
@@ -5719,6 +5776,8 @@ function autoFillDate(){
 
 function autoFillCalcDate(){
   const di=document.getElementById('calcDate');
+  // Ne pas écraser si mode édition actif
+  if(_editingDayIndex !== null) return;
   if(di.value)return;
   // Restore saved date if available
   if(window._savedCalcDate){ di.value=window._savedCalcDate; window._savedCalcDate=null; return; }
@@ -5752,18 +5811,40 @@ function addEntry(){
 }
 
 function editDay(i){
-  const d=days[i];
-  const row=document.getElementById('saisie-row-'+i);
-  if(!row)return;
-  row.classList.add('editing');
-  row.innerHTML=`
-    <span class="day-date">${d.label}</span>
-    <div class="day-bar-wrap" style="flex:0;width:0"></div>
-    <input type="number" id="edit-cal-${i}" value="${d.calories}" style="width:90px" onclick="event.stopPropagation()">
-    <input type="text" id="edit-note-${i}" value="${d.note||''}" placeholder="note..." style="flex:2;min-width:120px" onclick="event.stopPropagation()">
-    <button class="btn" style="padding:5px 12px;font-size:12px" onclick="saveEditDay(${i})">✓</button>
-    <button class="day-del" onclick="cancelEditDay(${i})">×</button>
-  `;
+  const d = days[i];
+  // Si la journée a des items détaillés → mode édition riche dans le calculateur
+  if(d.items && d.items.length > 0){
+    // Confirmer si des items sont déjà dans le calculateur
+    if(calcItems.length > 0){
+      if(!confirm('Le calculateur contient déjà des aliments non validés. Les remplacer par les repas du '+d.label+' ?')) return;
+    }
+    // Charger les items de la journée dans calcItems
+    // Les données sont auto-suffisantes (nom, grams, kcal, macros stockés)
+    calcItems = d.items.map(function(item){ return Object.assign({}, item); });
+    _editingDayIndex = i;
+    // Aller sur le calculateur avec la date de la journée
+    document.getElementById('calcDate').value = d.date;
+    if(d.note) document.getElementById('calcNote').value = d.note;
+    else document.getElementById('calcNote').value = '';
+    // Switcher vers le calculateur
+    const calcTab = document.querySelector('.sidebar-tab[onclick*="calculateur"]');
+    showTab('calculateur', calcTab);
+    renderCalcItems();
+    updateEditModeBanner();
+  } else {
+    // Pas d'items détaillés (saisie manuelle) → édition inline calories/note
+    const row = document.getElementById('saisie-row-'+i);
+    if(!row) return;
+    row.classList.add('editing');
+    row.innerHTML = `
+      <span class="day-date">${d.label}</span>
+      <div class="day-bar-wrap" style="flex:0;width:0"></div>
+      <input type="number" id="edit-cal-${i}" value="${d.calories}" style="width:90px" onclick="event.stopPropagation()">
+      <input type="text" id="edit-note-${i}" value="${d.note||''}" placeholder="note..." style="flex:2;min-width:120px" onclick="event.stopPropagation()">
+      <button class="btn" style="padding:5px 12px;font-size:12px" onclick="saveEditDay(${i})">✓</button>
+      <button class="day-del" onclick="cancelEditDay(${i})">×</button>
+    `;
+  }
 }
 
 function saveEditDay(i){
@@ -5780,6 +5861,46 @@ function saveEditDay(i){
 
 function cancelEditDay(i){
   refresh();
+}
+
+function cancelEditMode(){
+  if(_editingDayIndex !== null){
+    if(calcItems.length > 0){
+      if(!confirm('Annuler l\'édition ? Les modifications en cours seront perdues.')) return;
+    }
+    _editingDayIndex = null;
+    calcItems = [];
+    renderCalcItems();
+    updateEditModeBanner();
+    // Retourner à la liste
+    const calcTab = document.querySelector('.sidebar-tab[onclick*="calculateur"]');
+    showTab('calculateur', calcTab);
+  }
+}
+
+function updateEditModeBanner(){
+  const banner = document.getElementById('editModeBanner');
+  const btnValider = document.getElementById('btnValider');
+  const btnReset = document.getElementById('btnResetJour');
+  const hintText = document.getElementById('calcHintText');
+  const dateInput = document.getElementById('calcDate');
+  if(!banner) return;
+  if(_editingDayIndex !== null){
+    const d = days[_editingDayIndex];
+    banner.style.display = 'flex';
+    document.getElementById('editModeBannerText').textContent =
+      'Vous modifiez la journée du ' + d.label + ' — valider remplacera tous les repas existants.';
+    if(btnValider){ btnValider.textContent = '💾 Remplacer la journée'; btnValider.style.background = 'linear-gradient(135deg,#f97316,#ea580c)'; }
+    if(btnReset) btnReset.style.display = 'none';
+    if(hintText) hintText.textContent = 'Les repas ci-dessus remplaceront entièrement la journée du ' + d.label + '.';
+    if(dateInput) dateInput.setAttribute('readonly', 'true');
+  } else {
+    banner.style.display = 'none';
+    if(btnValider){ btnValider.textContent = '+ Ajouter au total du jour'; btnValider.style.background = ''; }
+    if(btnReset) btnReset.style.display = '';
+    if(hintText) hintText.textContent = 'Le total sera automatiquement envoyé dans l\'onglet Saisie.';
+    if(dateInput) dateInput.removeAttribute('readonly');
+  }
 }
 
 function deleteDay(i){ if(!confirm('Supprimer l\'entrée du '+days[i].label+' ?')) return; days.splice(i,1); refresh(); saveData(); }
