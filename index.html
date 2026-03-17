@@ -5107,9 +5107,19 @@ function validerSaisieBilan(){
   }
 
   if(_bilanSaisieMode && _bilanSaisieMode !== 'create'){
-    // Édition : remplacer
+    // Édition : fusionner avec les données existantes pour ne pas perdre les marqueurs hors formulaire
     const idx = bilans.findIndex(x => x.id === _bilanSaisieMode);
-    if(idx >= 0){ bilans[idx] = { id: _bilanSaisieMode, date: dateVal, laboratoire: labo, marqueurs }; }
+    if(idx >= 0){
+      const existing = bilans[idx];
+      // Partir des marqueurs existants comme base
+      const merged = JSON.parse(JSON.stringify(existing.marqueurs));
+      // Écraser uniquement les catégories/marqueurs saisis dans le formulaire
+      Object.entries(marqueurs).forEach(function([catKey, catData]){
+        if(!merged[catKey]) merged[catKey] = {};
+        Object.assign(merged[catKey], catData);
+      });
+      bilans[idx] = { id: _bilanSaisieMode, date: dateVal, laboratoire: labo, marqueurs: merged };
+    }
   } else {
     // Création
     const id = 'manual_' + Date.now();
