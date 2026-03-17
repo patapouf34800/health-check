@@ -1925,9 +1925,9 @@ async function loadData(){
     if(data.usageCount) usageCount = data.usageCount;
     if(data.conditionsActives) _conditionsActives = data.conditionsActives;
     if(data.objectifPoids) _objectifPoids = data.objectifPoids;
+    if(data.recettes) { recettes = data.recettes; recetteNextId = data.recetteNextId || recettes.length + 1; }
     try {
       let calcRaw = localStorage.getItem(STORAGE_KEY_ENC+'_calc');
-      if (calcRaw && window._masterKey) {
         calcRaw = await decryptFromStorage(calcRaw);
       } else {
         calcRaw = localStorage.getItem(STORAGE_KEY+'_calc');
@@ -2107,8 +2107,7 @@ function importData(event){
       if(data.usageCount) usageCount = data.usageCount;
       if(data.conditionsActives) _conditionsActives = data.conditionsActives;
       if(data.objectifPoids) _objectifPoids = data.objectifPoids;
-      bilans.forEach(b => {
-        const lip = b.marqueurs && b.marqueurs.bilan_lipidique;
+      if(data.recettes) { recettes = data.recettes; recetteNextId = data.recetteNextId || recettes.length + 1; }
         if(lip && lip.HDL && lip.cholesterol_total && !lip.ratio_CHOL_HDL){
           const hdl = lip.HDL.valeur, chol = lip.cholesterol_total.valeur;
           if(hdl > 0) lip.ratio_CHOL_HDL = { valeur: Math.round(chol/hdl*100)/100, refMin: null, refMax: 5.0, note: 'Calculé automatiquement : Chol/HDL' };
