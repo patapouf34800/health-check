@@ -298,7 +298,7 @@
         Configurer →
       </button>
     </div>
-    <div id="kpiGrid"></div>
+    <div class="kpi-grid" id="kpiGrid"></div>
     <!-- Bannière objectif poids -->
     <div id="objectifBanner" style="display:none"></div>
     <div class="chart-card">
@@ -6311,6 +6311,7 @@ function resetTotal(){
 
   // Sortir du mode édition s'il était actif
   _editingDayIndex = null;
+  _objectifPoids = null;
 
   refresh(); saveData();
   alert('✓ Toutes les données ont été effacées.');
