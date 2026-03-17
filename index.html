@@ -1041,7 +1041,7 @@
     <div class="chart-card" id="bilanSaisieCard" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
         <div class="chart-title" style="margin-bottom:0" id="bilanSaisieTitre">✏️ Saisie manuelle d'un bilan</div>
-        <button class="period-btn" onclick="toggleSaisieBilan()">✕ Fermer</button>
+        <button class="period-btn" onclick="closeSaisieBilan()">✕ Fermer</button>
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
         <div class="form-group" style="flex:1;min-width:160px">
@@ -1057,7 +1057,7 @@
       <div id="bilanSaisieForm"></div>
       <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap">
         <button class="btn" onclick="validerSaisieBilan()">💾 Enregistrer le bilan</button>
-        <button class="btn btn-secondary" onclick="toggleSaisieBilan()">Annuler</button>
+        <button class="btn btn-secondary" onclick="closeSaisieBilan()">Annuler</button>
       </div>
     </div>
 
@@ -5013,8 +5013,11 @@ function toggleBilanUnite(key){
 
 function toggleSaisieBilan(editId){
   const card = document.getElementById('bilanSaisieCard');
-  // Fermer si : appelé sans argument (boutons Fermer/Annuler), ou re-clic sur le même bilan en édition
-  if(editId === undefined || (card.style.display !== 'none' && editId === _bilanSaisieMode)){
+  // Fermer si : re-clic sur "Saisie manuelle" quand déjà ouvert en mode création,
+  // ou re-clic sur le même bilan en mode édition
+  const alreadyOpen = card.style.display !== 'none';
+  const sameMode = (editId === undefined && _bilanSaisieMode === 'create') || (editId !== undefined && editId === _bilanSaisieMode);
+  if(alreadyOpen && sameMode){
     card.style.display = 'none'; _bilanSaisieMode = null; return;
   }
   _bilanSaisieMode = editId || 'create';
@@ -5036,6 +5039,12 @@ function toggleSaisieBilan(editId){
   }
   card.style.display = 'block';
   card.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function closeSaisieBilan(){
+  const card = document.getElementById('bilanSaisieCard');
+  if(card) card.style.display = 'none';
+  _bilanSaisieMode = null;
 }
 
 function renderSaisieForm(existingBilan){
@@ -5179,8 +5188,7 @@ function validerSaisieBilan(){
 
   bilans.sort((a,b) => a.date.localeCompare(b.date));
   saveData(); renderBilans(); renderAllSanteSections();
-  document.getElementById('bilanSaisieCard').style.display = 'none';
-  _bilanSaisieMode = null;
+  closeSaisieBilan();
   alert(totalSaisi + ' marqueur(s) enregistré(s).');
 }
 
