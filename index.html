@@ -4983,7 +4983,8 @@ var _bilanSaisieMode = null; // null | 'create' | id (edit)
 
 function toggleSaisieBilan(editId){
   const card = document.getElementById('bilanSaisieCard');
-  if(card.style.display !== 'none' && editId === _bilanSaisieMode){
+  // Fermer si : appelé sans argument (boutons Fermer/Annuler), ou re-clic sur le même bilan en édition
+  if(editId === undefined || (card.style.display !== 'none' && editId === _bilanSaisieMode)){
     card.style.display = 'none'; _bilanSaisieMode = null; return;
   }
   _bilanSaisieMode = editId || 'create';
