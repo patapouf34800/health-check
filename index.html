@@ -1023,6 +1023,7 @@
           <div style="font-size:12px;color:rgba(255,255,255,0.3)">Importez vos analyses de sang au format JSON harmonisé</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary" onclick="toggleSaisieBilan()" style="font-size:11px;padding:6px 14px">✏️ Saisie manuelle</button>
           <label class="btn btn-secondary" style="cursor:pointer;font-size:11px;padding:6px 14px">
             ⬆ Importer bilan JSON
             <input type="file" accept=".json" onchange="importBilan(event)" style="display:none">
@@ -1035,6 +1036,31 @@
       </div>
       <div id="bilansList"></div>
     </div>
+
+    <!-- Formulaire saisie manuelle -->
+    <div class="chart-card" id="bilanSaisieCard" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div class="chart-title" style="margin-bottom:0" id="bilanSaisieTitre">✏️ Saisie manuelle d'un bilan</div>
+        <button class="period-btn" onclick="toggleSaisieBilan()">✕ Fermer</button>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+        <div class="form-group" style="flex:1;min-width:160px">
+          <label>Date du bilan</label>
+          <input type="date" id="bilanSaisieDate" style="width:100%">
+        </div>
+        <div class="form-group" style="flex:2;min-width:200px">
+          <label>Laboratoire</label>
+          <input type="text" id="bilanSaisieLabo" placeholder="ex : Cerba, Synlab, CHU…" style="width:100%">
+        </div>
+      </div>
+      <p style="font-size:11px;color:rgba(255,255,255,0.2);margin-bottom:16px">Laissez vide les marqueurs non présents dans votre bilan — ils seront ignorés. Les valeurs de référence sont pré-remplies avec les normes standard, ajustez si votre labo indique des valeurs différentes.</p>
+      <div id="bilanSaisieForm"></div>
+      <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap">
+        <button class="btn" onclick="validerSaisieBilan()">💾 Enregistrer le bilan</button>
+        <button class="btn btn-secondary" onclick="toggleSaisieBilan()">Annuler</button>
+      </div>
+    </div>
+
     <div class="chart-card" id="bilanDetailCard" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
         <div class="chart-title" style="margin-bottom:0" id="bilanDetailTitle">Détail du bilan</div>
@@ -4894,6 +4920,178 @@ function exportBilans(){
   a.click(); URL.revokeObjectURL(url);
 }
 
+/* ── SAISIE MANUELLE BILAN ── */
+const BILAN_REFS = {
+  hematologie: {
+    hematies:         { label:'Hématies',       unite:'T/L',   refMin:4.2,  refMax:5.8  },
+    hemoglobine:      { label:'Hémoglobine',    unite:'g/L',   refMin:120,  refMax:170  },
+    hematocrite:      { label:'Hématocrite',    unite:'%',     refMin:36,   refMax:50   },
+    MCV:              { label:'MCV',            unite:'fL',    refMin:80,   refMax:100  },
+    MCH:              { label:'MCH',            unite:'pg',    refMin:27,   refMax:33   },
+    MCHC:             { label:'MCHC',           unite:'g/L',   refMin:320,  refMax:360  },
+    leucocytes:       { label:'Leucocytes',     unite:'G/L',   refMin:4.0,  refMax:10.0 },
+    neutrophiles_abs: { label:'Neutrophiles',   unite:'G/L',   refMin:1.8,  refMax:7.5  },
+    lymphocytes_abs:  { label:'Lymphocytes',    unite:'G/L',   refMin:1.0,  refMax:4.0  },
+    monocytes_abs:    { label:'Monocytes',      unite:'G/L',   refMin:0.2,  refMax:1.0  },
+    eosinophiles_abs: { label:'Éosinophiles',   unite:'G/L',   refMin:0.0,  refMax:0.5  },
+    basophiles_abs:   { label:'Basophiles',     unite:'G/L',   refMin:0.0,  refMax:0.1  },
+    plaquettes:       { label:'Plaquettes',     unite:'G/L',   refMin:150,  refMax:400  },
+  },
+  biochimie: {
+    sodium:           { label:'Sodium',         unite:'mmol/L',refMin:136,  refMax:145  },
+    potassium:        { label:'Potassium',       unite:'mmol/L',refMin:3.5,  refMax:5.1  },
+    creatinine:       { label:'Créatinine',     unite:'µmol/L',refMin:50,   refMax:110  },
+    eGFR_CKD_EPI:     { label:'eGFR CKD-EPI',  unite:'mL/min',refMin:60,   refMax:null },
+    glucose:          { label:'Glucose',        unite:'mg/dL', refMin:70,   refMax:100  },
+    HbA1c:            { label:'HbA1c',          unite:'%',     refMin:null, refMax:5.7  },
+    GOT_AST:          { label:'GOT (AST)',       unite:'U/L',   refMin:null, refMax:40   },
+    GPT_ALT:          { label:'GPT (ALT)',       unite:'U/L',   refMin:null, refMax:41   },
+    gamma_GT:         { label:'Gamma-GT',        unite:'U/L',   refMin:null, refMax:55   },
+    CK_CPK:           { label:'CK / CPK',        unite:'U/L',   refMin:null, refMax:200  },
+    CRP:              { label:'CRP',             unite:'mg/L',  refMin:null, refMax:5.0  },
+    sedimentation:    { label:'Sédimentation',  unite:'mm/1h', refMin:null, refMax:20   },
+  },
+  bilan_lipidique: {
+    cholesterol_total:{ label:'Cholestérol total',unite:'mg/dL',refMin:null,refMax:200  },
+    triglycerides:    { label:'Triglycérides',  unite:'mg/dL', refMin:null, refMax:150  },
+    HDL:              { label:'HDL',            unite:'mg/dL', refMin:40,   refMax:null },
+    LDL:              { label:'LDL',            unite:'mg/dL', refMin:null, refMax:130  },
+    VLDL:             { label:'VLDL',           unite:'mg/dL', refMin:null, refMax:30   },
+  },
+  bilan_martial: {
+    fer:              { label:'Fer',            unite:'µg/dL', refMin:60,   refMax:170  },
+    ferritine:        { label:'Ferritine',      unite:'µg/L',  refMin:15,   refMax:200  },
+  },
+  vitamines: {
+    vitamine_D:       { label:'Vitamine D',     unite:'nmol/L',refMin:75,   refMax:250  },
+  },
+  hormones: {
+    TSH:              { label:'TSH',            unite:'mIU/L', refMin:0.4,  refMax:4.0  },
+  },
+};
+
+const BILAN_CAT_LABELS = {
+  hematologie:    '🔴 Hématologie',
+  biochimie:      '🧪 Biochimie',
+  bilan_lipidique:'💛 Bilan lipidique',
+  bilan_martial:  '⚙️ Bilan martial',
+  vitamines:      '☀️ Vitamines',
+  hormones:       '🔬 Hormones',
+};
+
+var _bilanSaisieMode = null; // null | 'create' | id (edit)
+
+function toggleSaisieBilan(editId){
+  const card = document.getElementById('bilanSaisieCard');
+  if(card.style.display !== 'none' && editId === _bilanSaisieMode){
+    card.style.display = 'none'; _bilanSaisieMode = null; return;
+  }
+  _bilanSaisieMode = editId || 'create';
+  const titre = document.getElementById('bilanSaisieTitre');
+  // Pré-remplir si édition
+  if(editId){
+    const b = bilans.find(x => x.id === editId);
+    if(!b) return;
+    titre.textContent = '✏️ Modifier le bilan du ' + new Date(b.date+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
+    document.getElementById('bilanSaisieDate').value = b.date;
+    document.getElementById('bilanSaisieLabo').value = b.laboratoire;
+    renderSaisieForm(b);
+  } else {
+    titre.textContent = '✏️ Saisie manuelle d\'un bilan';
+    document.getElementById('bilanSaisieDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('bilanSaisieLabo').value = '';
+    renderSaisieForm(null);
+  }
+  card.style.display = 'block';
+  card.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function renderSaisieForm(existingBilan){
+  const el = document.getElementById('bilanSaisieForm');
+  let html = '';
+  Object.entries(BILAN_REFS).forEach(function([catKey, marqueurs]){
+    html += '<div style="margin-bottom:24px">';
+    html += '<div style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.3);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.06)">'+(BILAN_CAT_LABELS[catKey]||catKey)+'</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:8px">';
+    Object.entries(marqueurs).forEach(function([key, ref]){
+      // Récupérer valeur existante si édition
+      let existVal = '', existMin = ref.refMin !== null ? ref.refMin : '', existMax = ref.refMax !== null ? ref.refMax : '';
+      if(existingBilan && existingBilan.marqueurs[catKey] && existingBilan.marqueurs[catKey][key]){
+        const m = existingBilan.marqueurs[catKey][key];
+        existVal = m.valeur;
+        existMin = m.refMin !== null ? m.refMin : existMin;
+        existMax = m.refMax !== null ? m.refMax : existMax;
+      }
+      html += '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:10px 12px">';
+      html += '<div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:6px">'+ref.label+' <span style="color:rgba(255,255,255,0.25)">'+ref.unite+'</span></div>';
+      html += '<div style="display:flex;gap:6px;align-items:center">';
+      html += '<input type="number" id="bs_val_'+key+'" placeholder="valeur" value="'+existVal+'" step="any" style="flex:2;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;padding:5px 8px;font-size:13px;font-family:inherit;outline:none">';
+      html += '<span style="font-size:10px;color:rgba(255,255,255,0.2)">réf</span>';
+      html += '<input type="number" id="bs_min_'+key+'" placeholder="min" value="'+existMin+'" step="any" style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);color:rgba(255,255,255,0.5);border-radius:6px;padding:5px 6px;font-size:11px;font-family:inherit;outline:none">';
+      html += '<span style="font-size:10px;color:rgba(255,255,255,0.2)">–</span>';
+      html += '<input type="number" id="bs_max_'+key+'" placeholder="max" value="'+existMax+'" step="any" style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);color:rgba(255,255,255,0.5);border-radius:6px;padding:5px 6px;font-size:11px;font-family:inherit;outline:none">';
+      html += '</div></div>';
+    });
+    html += '</div></div>';
+  });
+  el.innerHTML = html;
+}
+
+function validerSaisieBilan(){
+  const dateVal = document.getElementById('bilanSaisieDate').value;
+  const labo = document.getElementById('bilanSaisieLabo').value.trim() || 'Saisie manuelle';
+  if(!dateVal){ alert('Merci de renseigner une date.'); return; }
+  const yearB = parseInt(dateVal.split('-')[0]);
+  if(yearB < 2000 || yearB > 2099){ alert('⚠️ Année invalide.'); return; }
+
+  const marqueurs = {};
+  let totalSaisi = 0;
+
+  Object.entries(BILAN_REFS).forEach(function([catKey, refs]){
+    const catData = {};
+    Object.keys(refs).forEach(function(key){
+      const valEl = document.getElementById('bs_val_'+key);
+      if(!valEl) return;
+      const val = parseFloat(valEl.value);
+      if(isNaN(val)) return; // champ vide = ignoré
+      const minEl = document.getElementById('bs_min_'+key);
+      const maxEl = document.getElementById('bs_max_'+key);
+      const refMin = minEl && minEl.value !== '' ? parseFloat(minEl.value) : null;
+      const refMax = maxEl && maxEl.value !== '' ? parseFloat(maxEl.value) : null;
+      catData[key] = { valeur: val, refMin: refMin, refMax: refMax };
+      totalSaisi++;
+    });
+    if(Object.keys(catData).length > 0) marqueurs[catKey] = catData;
+  });
+
+  if(totalSaisi === 0){ alert('Aucune valeur saisie.'); return; }
+
+  // Calcul auto ratio CHOL/HDL
+  if(marqueurs.bilan_lipidique && marqueurs.bilan_lipidique.HDL && marqueurs.bilan_lipidique.cholesterol_total){
+    const hdl = marqueurs.bilan_lipidique.HDL.valeur;
+    const chol = marqueurs.bilan_lipidique.cholesterol_total.valeur;
+    if(hdl > 0 && !marqueurs.bilan_lipidique.ratio_CHOL_HDL){
+      marqueurs.bilan_lipidique.ratio_CHOL_HDL = { valeur: Math.round(chol/hdl*100)/100, refMin: null, refMax: 5.0, note: 'Calculé automatiquement : Chol/HDL' };
+    }
+  }
+
+  if(_bilanSaisieMode && _bilanSaisieMode !== 'create'){
+    // Édition : remplacer
+    const idx = bilans.findIndex(x => x.id === _bilanSaisieMode);
+    if(idx >= 0){ bilans[idx] = { id: _bilanSaisieMode, date: dateVal, laboratoire: labo, marqueurs }; }
+  } else {
+    // Création
+    const id = 'manual_' + Date.now();
+    bilans.push({ id, date: dateVal, laboratoire: labo, marqueurs });
+  }
+
+  bilans.sort((a,b) => a.date.localeCompare(b.date));
+  saveData(); renderBilans(); renderAllSanteSections();
+  document.getElementById('bilanSaisieCard').style.display = 'none';
+  _bilanSaisieMode = null;
+  alert(totalSaisi + ' marqueur(s) enregistré(s).');
+}
+
 function deleteBilan(id){
   if(!confirm('Supprimer ce bilan ?')) return;
   bilans = bilans.filter(b => b.id !== id);
@@ -4968,6 +5166,7 @@ function renderBilans(){
         ${haut ? `<span style="font-size:11px;color:#ef4444;font-family:monospace">↑ ${haut} haut</span>` : ''}
         ${bas ? `<span style="font-size:11px;color:#38bdf8;font-family:monospace">↓ ${bas} bas</span>` : ''}
         <span style="font-size:11px;color:#22c55e;font-family:monospace">✓ ${ok}/${total}</span>
+        <button class="day-edit-btn" onclick="event.stopPropagation();toggleSaisieBilan('${b.id}')" title="Modifier">✏️</button>
         <button class="day-del" onclick="event.stopPropagation();deleteBilan('${b.id}')">×</button>
       </div>
     </div>`;
