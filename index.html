@@ -1474,6 +1474,8 @@ function addTension(){
   const dia = parseInt(document.getElementById('tensionDia').value);
   const pouls = parseInt(document.getElementById('tensionPouls').value) || null;
   if(!date || isNaN(sys) || isNaN(dia)){ alert('Date, systolique et diastolique requis.'); return; }
+  const yearT = parseInt(date.split('-')[0]);
+  if(yearT < 2000 || yearT > 2099){ alert('⚠️ Année invalide ('+yearT+'). Merci de saisir une date entre 2000 et 2099.'); return; }
   // Remplacer si même date
   const _todayT = new Date().toISOString().split('T')[0];
   const labelT = new Date(date).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
@@ -2080,7 +2082,7 @@ function importData(event){
           const lip = b.marqueurs && b.marqueurs.bilan_lipidique;
           if(lip && lip.HDL && lip.cholesterol_total && !lip.ratio_CHOL_HDL){
             const hdl = lip.HDL.valeur, chol = lip.cholesterol_total.valeur;
-            lip.ratio_CHOL_HDL = { valeur: Math.round(chol/hdl*100)/100, refMin: null, refMax: 5.0, note: 'Calculé automatiquement : Chol/HDL' };
+            if(hdl > 0) lip.ratio_CHOL_HDL = { valeur: Math.round(chol/hdl*100)/100, refMin: null, refMax: 5.0, note: 'Calculé automatiquement : Chol/HDL' };
           }
         });
         saveData(); refresh();
@@ -2109,7 +2111,7 @@ function importData(event){
         const lip = b.marqueurs && b.marqueurs.bilan_lipidique;
         if(lip && lip.HDL && lip.cholesterol_total && !lip.ratio_CHOL_HDL){
           const hdl = lip.HDL.valeur, chol = lip.cholesterol_total.valeur;
-          lip.ratio_CHOL_HDL = { valeur: Math.round(chol/hdl*100)/100, refMin: null, refMax: 5.0, note: 'Calculé automatiquement : Chol/HDL' };
+          if(hdl > 0) lip.ratio_CHOL_HDL = { valeur: Math.round(chol/hdl*100)/100, refMin: null, refMax: 5.0, note: 'Calculé automatiquement : Chol/HDL' };
         }
       });
       if(data.poids) document.getElementById('poidsInput').value = data.poids;
@@ -3210,6 +3212,8 @@ function validerJournee(){
   const existing=days.findIndex(d=>d.date===dateVal);
   // Sécurité date
   const todayStr = new Date().toISOString().split('T')[0];
+  const yearEntry = parseInt(dateVal.split('-')[0]);
+  if(yearEntry < 2000 || yearEntry > 2099){alert('⚠️ Année invalide ('+yearEntry+'). Merci de saisir une date entre 2000 et 2099.');return;}
   if(dateVal > todayStr){
     if(!confirm('⚠️ La date sélectionnée ('+label+') est dans le futur. Confirmer quand même ?')) return;
   } else if(existing >= 0){
@@ -4733,7 +4737,7 @@ function renderSurveiller(){
       if(prevBilan){
         let prevVal = null;
         Object.values(prevBilan.marqueurs).forEach(cat => { if(cat[key]) prevVal = cat[key].valeur; });
-        if(prevVal !== null){
+        if(prevVal !== null && prevVal !== 0){
           const diff = v - prevVal;
           const pct = ((diff / prevVal) * 100).toFixed(1);
           const arrow = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
@@ -4826,7 +4830,7 @@ function importBilan(event){
         const lip = b.marqueurs.bilan_lipidique;
         if(lip && lip.HDL && lip.cholesterol_total && !lip.ratio_CHOL_HDL){
           const hdl = lip.HDL.valeur, chol = lip.cholesterol_total.valeur;
-          lip.ratio_CHOL_HDL = { valeur: Math.round(chol/hdl*100)/100, refMin: null, refMax: 5.0, note: 'Calculé automatiquement : Chol/HDL' };
+          if(hdl > 0) lip.ratio_CHOL_HDL = { valeur: Math.round(chol/hdl*100)/100, refMin: null, refMax: 5.0, note: 'Calculé automatiquement : Chol/HDL' };
         }
       });
       bilans.sort((a,b) => a.date.localeCompare(b.date));
@@ -5585,7 +5589,7 @@ function renderBilanHebdo(){
     // ── Glucides en excès ────────────────────────────────────────────────────
     if(avgG !== null && avgP !== null && avgL !== null){
       // Utiliser l'objectif moyen de la semaine (snapshoté) plutôt que l'objectif actuel
-      var avgKcal = parseFloat((withData.reduce(function(s,d){ return s + (d.data.objectif || c.kcal); }, 0) / n).toFixed(0));
+      var avgKcal = n > 0 ? parseFloat((withData.reduce(function(s,d){ return s + (d.data.objectif || c.kcal); }, 0) / n).toFixed(0)) : c.kcal;
       var budgetGluc = Math.round((avgKcal - (avgP * 4) - (avgL * 9)) / 4);
       if(budgetGluc > 0 && avgG > budgetGluc * 1.1){
         var glucContrib = {};
@@ -6512,6 +6516,8 @@ function addPesee(){
   const dateVal=document.getElementById('peseeDate').value;
   const val=parseFloat(document.getElementById('peseeVal').value);
   if(!dateVal||!val||val<=0){alert('Merci de renseigner une date et un poids valide.');return;}
+  const year = parseInt(dateVal.split('-')[0]);
+  if(year < 2000 || year > 2099){alert('⚠️ Année invalide ('+year+'). Merci de saisir une date entre 2000 et 2099.');return;}
   const label=new Date(dateVal).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
   const existing=pesees.findIndex(p=>p.date===dateVal);
   const _todayP = new Date().toISOString().split('T')[0];
