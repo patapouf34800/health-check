@@ -5045,20 +5045,43 @@ function validerSaisieBilan(){
   const yearB = parseInt(dateVal.split('-')[0]);
   if(yearB < 2000 || yearB > 2099){ alert('⚠️ Année invalide.'); return; }
 
+  // Seuils de vraisemblance (≈ 10× max physiologique connu)
+  const SEUILS_MAX = {
+    hematies:4500, hemoglobine:250, hematocrite:70, MCV:150, MCH:60, MCHC:500,
+    leucocytes:100, neutrophiles_abs:80, lymphocytes_abs:50, monocytes_abs:10,
+    eosinophiles_abs:5, basophiles_abs:1, plaquettes:2000,
+    sodium:200, potassium:10, creatinine:2000, eGFR_CKD_EPI:200,
+    glucose:800, HbA1c:20,
+    GOT_AST:5000, GPT_ALT:5000, gamma_GT:3000, CK_CPK:50000,
+    CRP:500, sedimentation:200,
+    cholesterol_total:1000, triglycerides:5000, HDL:300, LDL:600, VLDL:200,
+    fer:1000, ferritine:10000,
+    vitamine_D:1000, TSH:100,
+  };
+
   const marqueurs = {};
   let totalSaisi = 0;
+  const alertes = [];
 
   Object.entries(BILAN_REFS).forEach(function([catKey, refs]){
     const catData = {};
     Object.keys(refs).forEach(function(key){
       const valEl = document.getElementById('bs_val_'+key);
       if(!valEl) return;
-      const val = parseFloat(valEl.value);
+      // Accepter virgule ou point comme séparateur décimal
+      const rawStr = valEl.value.replace(',', '.');
+      const val = parseFloat(rawStr);
       if(isNaN(val)) return; // champ vide = ignoré
+      // Bloquer les valeurs négatives
+      if(val < 0){ alertes.push(refs[key].label + ' : valeur négative ('+val+') — ignorée'); return; }
+      // Alerte si valeur aberrante
+      if(SEUILS_MAX[key] !== undefined && val > SEUILS_MAX[key]){
+        alertes.push(refs[key].label + ' : ' + val + ' ' + refs[key].unite + ' — valeur inhabituellement élevée, vérifiez (max attendu ~' + SEUILS_MAX[key] + ')');
+      }
       const minEl = document.getElementById('bs_min_'+key);
       const maxEl = document.getElementById('bs_max_'+key);
-      const refMin = minEl && minEl.value !== '' ? parseFloat(minEl.value) : null;
-      const refMax = maxEl && maxEl.value !== '' ? parseFloat(maxEl.value) : null;
+      const refMin = minEl && minEl.value !== '' ? parseFloat(minEl.value.replace(',','.')) : null;
+      const refMax = maxEl && maxEl.value !== '' ? parseFloat(maxEl.value.replace(',','.')) : null;
       catData[key] = { valeur: val, refMin: refMin, refMax: refMax };
       totalSaisi++;
     });
@@ -5066,6 +5089,13 @@ function validerSaisieBilan(){
   });
 
   if(totalSaisi === 0){ alert('Aucune valeur saisie.'); return; }
+
+  // Bloquer si des valeurs aberrantes ont été détectées
+  if(alertes.length > 0){
+    const msg = '⚠️ Valeurs suspectes détectées — vérifiez avant d\'enregistrer :\n\n' + alertes.join('\n') + '\n\nCorrigez et réessayez.';
+    alert(msg);
+    return;
+  }
 
   // Calcul auto ratio CHOL/HDL
   if(marqueurs.bilan_lipidique && marqueurs.bilan_lipidique.HDL && marqueurs.bilan_lipidique.cholesterol_total){
