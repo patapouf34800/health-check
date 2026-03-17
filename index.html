@@ -3008,9 +3008,11 @@ function updateCalcItemGrams(i, rawVal){
   if(!grams || grams <= 0 || isNaN(grams)) { renderCalcItems(); return; }
   const item = calcItems[i];
   if(item.grams === grams) return;
+  const oldGrams = item.grams; // Figer avant toute mutation
   const ratio = grams / 100;
-  const kcal100 = item.kcal100 != null ? item.kcal100 : (item.grams > 0 ? item.kcal / item.grams * 100 : 0);
-  if(item.kcal100 == null) item.kcal100 = kcal100;
+  // kcal100 : soit stocké, soit déduit depuis les valeurs actuelles (avant mutation de grams)
+  const kcal100 = item.kcal100 != null ? item.kcal100 : (oldGrams > 0 ? item.kcal / oldGrams * 100 : 0);
+  if(item.kcal100 == null) item.kcal100 = kcal100; // Mémoriser pour les prochaines fois
   item.grams = grams;
   item.kcal = Math.round(kcal100 * ratio);
   if(item.p100 != null) item.p = Math.round(item.p100 * ratio * 10) / 10;
@@ -3033,28 +3035,33 @@ function validerJournee(){
   // ── MODE ÉDITION : remplacer la journée existante ──
   if(_editingDayIndex !== null){
     const i = _editingDayIndex;
-    if(!confirm('Remplacer les repas du '+days[i].label+' ? Cette action est irréversible.')) return;
-    // Recalculer les macros depuis les items
-    var tp=0,tg=0,tl=0,tf=0,hasMacro=false;
+    if(!confirm('Remplacer les repas du '+days[i].label+' par ceux-ci ?')) return;
+    // Recalculer les macros depuis les items, macro par macro
+    var tp=0,tg=0,tl=0,tf=0,hasP=false,hasG=false,hasL=false,hasF=false;
     calcItems.forEach(function(item){
-      if(item.p!=null){tp+=item.p;hasMacro=true;}
-      if(item.g!=null){tg+=item.g;hasMacro=true;}
-      if(item.l!=null){tl+=item.l;hasMacro=true;}
-      if(item.f!=null){tf+=item.f;hasMacro=true;}
+      if(item.p!=null){tp+=item.p;hasP=true;}
+      if(item.g!=null){tg+=item.g;hasG=true;}
+      if(item.l!=null){tl+=item.l;hasL=true;}
+      if(item.f!=null){tf+=item.f;hasF=true;}
     });
     tp=Math.round(tp*10)/10; tg=Math.round(tg*10)/10;
     tl=Math.round(tl*10)/10; tf=Math.round(tf*10)/10;
     days[i].calories = total;
+    days[i].objectif = getObjectif(); // Rafraîchir l'objectif (peut avoir changé)
     days[i].items = calcItems.map(function(item){ return Object.assign({},item); });
     days[i].cibles = getNutriCibles();
-    if(hasMacro){ days[i].p=tp; days[i].g=tg; days[i].l=tl; days[i].f=tf; }
-    else { delete days[i].p; delete days[i].g; delete days[i].l; delete days[i].f; }
+    // Mettre à jour chaque macro indépendamment
+    if(hasP) days[i].p=tp; else delete days[i].p;
+    if(hasG) days[i].g=tg; else delete days[i].g;
+    if(hasL) days[i].l=tl; else delete days[i].l;
+    if(hasF) days[i].f=tf; else delete days[i].f;
     if(calcNoteVal) days[i].note=calcNoteVal; else delete days[i].note;
     // Réinitialiser le mode édition
     _editingDayIndex = null;
     calcItems = [];
     document.getElementById('calcNote').value = '';
     updateEditModeBanner();
+    maybeSnapshotWeeks(); // Recalculer les bilans hebdo
     refresh(); saveData();
     // Feedback
     const btn=document.getElementById('btnValider');
@@ -3072,31 +3079,32 @@ function validerJournee(){
   } else if(existing >= 0){
     if(!confirm('Une journée existe déjà pour le '+label+'. Les calories seront ajoutées à celles existantes. Continuer ?')) return;
   }
-  // Agréger les macros des calcItems
-  var tp=0,tg=0,tl=0,tf=0,hasMacro=false;
+  // Agréger les macros des calcItems, macro par macro
+  var tp=0,tg=0,tl=0,tf=0,hasP=false,hasG=false,hasL=false,hasF=false;
   calcItems.forEach(function(i){
-    if(i.p!=null){tp+=i.p;hasMacro=true;}
-    if(i.g!=null){tg+=i.g;hasMacro=true;}
-    if(i.l!=null){tl+=i.l;hasMacro=true;}
-    if(i.f!=null){tf+=i.f;hasMacro=true;}
+    if(i.p!=null){tp+=i.p;hasP=true;}
+    if(i.g!=null){tg+=i.g;hasG=true;}
+    if(i.l!=null){tl+=i.l;hasL=true;}
+    if(i.f!=null){tf+=i.f;hasF=true;}
   });
   tp=Math.round(tp*10)/10; tg=Math.round(tg*10)/10;
   tl=Math.round(tl*10)/10; tf=Math.round(tf*10)/10;
   if(existing>=0){
     days[existing].calories += total;
-    if(hasMacro){
-      days[existing].p = Math.round(((days[existing].p||0)+tp)*10)/10;
-      days[existing].g = Math.round(((days[existing].g||0)+tg)*10)/10;
-      days[existing].l = Math.round(((days[existing].l||0)+tl)*10)/10;
-      days[existing].f = Math.round(((days[existing].f||0)+tf)*10)/10;
-    }
+    if(hasP) days[existing].p = Math.round(((days[existing].p||0)+tp)*10)/10;
+    if(hasG) days[existing].g = Math.round(((days[existing].g||0)+tg)*10)/10;
+    if(hasL) days[existing].l = Math.round(((days[existing].l||0)+tl)*10)/10;
+    if(hasF) days[existing].f = Math.round(((days[existing].f||0)+tf)*10)/10;
     if(calcNoteVal) days[existing].note=calcNoteVal;
     // Ajouter les items au détail existant
     days[existing].items = (days[existing].items || []).concat(calcItems.map(function(i){ return Object.assign({},i); }));
     days[existing].cibles = getNutriCibles();
   } else {
     const day={date:dateVal,label,calories:total,objectif:getObjectif(),note:calcNoteVal||undefined};
-    if(hasMacro){day.p=tp;day.g=tg;day.l=tl;day.f=tf;}
+    if(hasP) day.p=tp;
+    if(hasG) day.g=tg;
+    if(hasL) day.l=tl;
+    if(hasF) day.f=tf;
     day.items = calcItems.map(function(i){ return Object.assign({},i); });
     day.cibles = getNutriCibles();
     days.push(day);
