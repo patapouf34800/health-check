@@ -1142,16 +1142,16 @@
         </div>
       </div>
       <canvas id="chartMacroTrend" height="110"></canvas>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:11px">
-        <span style="display:flex;align-items:center;gap:5px"><span style="width:18px;height:3px;background:#f97316;display:inline-block;border-radius:2px"></span>Protéines</span>
-        <span style="display:flex;align-items:center;gap:5px"><span style="width:18px;height:3px;background:#38bdf8;display:inline-block;border-radius:2px"></span>Glucides</span>
-        <span style="display:flex;align-items:center;gap:5px"><span style="width:18px;height:3px;background:#a78bfa;display:inline-block;border-radius:2px"></span>Lipides</span>
-        <span style="display:flex;align-items:center;gap:5px"><span style="width:18px;height:3px;background:#4ade80;display:inline-block;border-radius:2px"></span>Fibres</span>
-        <span style="display:flex;align-items:center;gap:5px;color:rgba(255,255,255,0.35)" id="legendMoyGliss">
-          <span style="width:18px;height:2px;border-top:2px dashed rgba(255,255,255,0.35);display:inline-block"></span>Moy. 7j (courbes)
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;font-size:11px">
+        <button class="macro-legend-btn active" data-macro="p" onclick="toggleMacroLegend('p',this)" style="display:flex;align-items:center;gap:5px;background:none;border:1px solid rgba(249,115,22,0.4);border-radius:6px;padding:3px 9px;cursor:pointer;color:rgba(255,255,255,0.7);transition:all .15s"><span style="width:14px;height:3px;background:#f97316;display:inline-block;border-radius:2px;flex-shrink:0"></span>Protéines</button>
+        <button class="macro-legend-btn active" data-macro="g" onclick="toggleMacroLegend('g',this)" style="display:flex;align-items:center;gap:5px;background:none;border:1px solid rgba(56,189,248,0.4);border-radius:6px;padding:3px 9px;cursor:pointer;color:rgba(255,255,255,0.7);transition:all .15s"><span style="width:14px;height:3px;background:#38bdf8;display:inline-block;border-radius:2px;flex-shrink:0"></span>Glucides</button>
+        <button class="macro-legend-btn active" data-macro="l" onclick="toggleMacroLegend('l',this)" style="display:flex;align-items:center;gap:5px;background:none;border:1px solid rgba(167,139,250,0.4);border-radius:6px;padding:3px 9px;cursor:pointer;color:rgba(255,255,255,0.7);transition:all .15s"><span style="width:14px;height:3px;background:#a78bfa;display:inline-block;border-radius:2px;flex-shrink:0"></span>Lipides</button>
+        <button class="macro-legend-btn active" data-macro="f" onclick="toggleMacroLegend('f',this)" style="display:flex;align-items:center;gap:5px;background:none;border:1px solid rgba(74,222,128,0.4);border-radius:6px;padding:3px 9px;cursor:pointer;color:rgba(255,255,255,0.7);transition:all .15s"><span style="width:14px;height:3px;background:#4ade80;display:inline-block;border-radius:2px;flex-shrink:0"></span>Fibres</button>
+        <span style="display:flex;align-items:center;gap:5px;color:rgba(255,255,255,0.3);font-size:11px;padding:3px 0" id="legendMoyGliss">
+          <span style="width:14px;height:2px;border-top:2px dashed rgba(255,255,255,0.3);display:inline-block"></span>Moy. 7j
         </span>
-        <span style="display:flex;align-items:center;gap:5px;color:rgba(255,255,255,0.35)" id="legendPoints" style="display:none">
-          <span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.3);display:inline-block"></span>Points journaliers
+        <span style="display:flex;align-items:center;gap:5px;color:rgba(255,255,255,0.3);font-size:11px;padding:3px 0" id="legendPoints" style="display:none">
+          <span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.25);display:inline-block"></span>Points
         </span>
       </div>
     </div>
@@ -5107,6 +5107,7 @@ var _bilanHebdoOffset = 0; // 0 = semaine courante, -1 = semaine précédente, e
 var _nutriPeriod = 'all';
 var _macroTrendDays = 0;     // 0 = tout (défaut)
 var _macroTrendMoy  = true;  // moyennes glissantes affichées par défaut
+var _macroVisible   = { p:true, g:true, l:true, f:true }; // visibilité par macro
 
 function getNutriDaysWithMacros(){
   // Retourne les jours triés chronologiquement ayant au moins un macro renseigné
@@ -5685,6 +5686,24 @@ function toggleMoyGliss(btn){
   renderMacroTrend();
 }
 
+function toggleMacroLegend(key, btn){
+  _macroVisible[key] = !_macroVisible[key];
+  const on = _macroVisible[key];
+  // Style du bouton : actif = couleur normale, inactif = grisé barré
+  btn.style.opacity = on ? '1' : '0.35';
+  btn.style.textDecoration = on ? 'none' : 'line-through';
+  // Agir sur les datasets du graphique sans re-render
+  const chart = charts['macroTrend'];
+  if(!chart) return;
+  // Mapping clé → préfixe des labels de dataset
+  const prefixes = { p:['Moy. Prot','Protéines'], g:['Moy. Gluc','Glucides'], l:['Moy. Lip','Lipides'], f:['Moy. Fibres','Fibres'] };
+  chart.data.datasets.forEach(function(ds, i){
+    const match = prefixes[key].some(function(pfx){ return ds.label.startsWith(pfx); });
+    if(match) chart.setDatasetVisibility(i, on);
+  });
+  chart.update('none'); // 'none' = pas d'animation pour la réactivité
+}
+
 function movingAvgMacro(data, win){
   return data.map(function(v, i){
     const slice = data.slice(Math.max(0, i - win + 1), i + 1).filter(function(x){ return x !== null; });
@@ -5717,19 +5736,19 @@ function renderMacroTrend(){
   const WIN = 7;
   // Moyennes glissantes — toujours affichées, courbes lisses et épaisses
   const datasets = [
-    { label:'Moy. Prot',   data:movingAvgMacro(pData,WIN), borderColor:'#f97316', backgroundColor:'rgba(249,115,22,0.07)',  fill:false, tension:0.4, pointRadius:0, borderWidth:2.5, spanGaps:true },
-    { label:'Moy. Gluc',   data:movingAvgMacro(gData,WIN), borderColor:'#38bdf8', backgroundColor:'rgba(56,189,248,0.07)',  fill:false, tension:0.4, pointRadius:0, borderWidth:2.5, spanGaps:true },
-    { label:'Moy. Lip',    data:movingAvgMacro(lData,WIN), borderColor:'#a78bfa', backgroundColor:'rgba(167,139,250,0.07)', fill:false, tension:0.4, pointRadius:0, borderWidth:2.5, spanGaps:true },
-    { label:'Moy. Fibres', data:movingAvgMacro(fData,WIN), borderColor:'#4ade80', backgroundColor:'rgba(74,222,128,0.07)',  fill:false, tension:0.4, pointRadius:0, borderWidth:2.5, spanGaps:true },
+    { label:'Moy. Prot',   data:movingAvgMacro(pData,WIN), borderColor:'#f97316', backgroundColor:'rgba(249,115,22,0.07)',  fill:false, tension:0.4, pointRadius:0, borderWidth:2.5, spanGaps:true, hidden:!_macroVisible.p },
+    { label:'Moy. Gluc',   data:movingAvgMacro(gData,WIN), borderColor:'#38bdf8', backgroundColor:'rgba(56,189,248,0.07)',  fill:false, tension:0.4, pointRadius:0, borderWidth:2.5, spanGaps:true, hidden:!_macroVisible.g },
+    { label:'Moy. Lip',    data:movingAvgMacro(lData,WIN), borderColor:'#a78bfa', backgroundColor:'rgba(167,139,250,0.07)', fill:false, tension:0.4, pointRadius:0, borderWidth:2.5, spanGaps:true, hidden:!_macroVisible.l },
+    { label:'Moy. Fibres', data:movingAvgMacro(fData,WIN), borderColor:'#4ade80', backgroundColor:'rgba(74,222,128,0.07)',  fill:false, tension:0.4, pointRadius:0, borderWidth:2.5, spanGaps:true, hidden:!_macroVisible.f },
   ];
 
   // Points bruts — conditionnels (bouton Points ●)
   if(_macroTrendMoy){
     const ps = { fill:false, tension:0, borderWidth:0, spanGaps:false, showLine:false };
-    datasets.push(Object.assign({ label:'Protéines (g)', data:pData, pointRadius:2.5, pointBackgroundColor:'rgba(249,115,22,0.5)',  borderColor:'transparent' }, ps));
-    datasets.push(Object.assign({ label:'Glucides (g)',  data:gData, pointRadius:2.5, pointBackgroundColor:'rgba(56,189,248,0.5)',  borderColor:'transparent' }, ps));
-    datasets.push(Object.assign({ label:'Lipides (g)',   data:lData, pointRadius:2.5, pointBackgroundColor:'rgba(167,139,250,0.5)', borderColor:'transparent' }, ps));
-    datasets.push(Object.assign({ label:'Fibres (g)',    data:fData, pointRadius:2.5, pointBackgroundColor:'rgba(74,222,128,0.5)',  borderColor:'transparent' }, ps));
+    datasets.push(Object.assign({ label:'Protéines (g)', data:pData, pointRadius:2.5, pointBackgroundColor:'rgba(249,115,22,0.5)',  borderColor:'transparent', hidden:!_macroVisible.p }, ps));
+    datasets.push(Object.assign({ label:'Glucides (g)',  data:gData, pointRadius:2.5, pointBackgroundColor:'rgba(56,189,248,0.5)',  borderColor:'transparent', hidden:!_macroVisible.g }, ps));
+    datasets.push(Object.assign({ label:'Lipides (g)',   data:lData, pointRadius:2.5, pointBackgroundColor:'rgba(167,139,250,0.5)', borderColor:'transparent', hidden:!_macroVisible.l }, ps));
+    datasets.push(Object.assign({ label:'Fibres (g)',    data:fData, pointRadius:2.5, pointBackgroundColor:'rgba(74,222,128,0.5)',  borderColor:'transparent', hidden:!_macroVisible.f }, ps));
   }
 
   const c = getNutriCibles();
@@ -5776,6 +5795,14 @@ function renderMacroTrend(){
         if(d) renderNutriDetail(d);
       }
     }
+  });
+
+  // Resynchroniser l'apparence des boutons légende (peut différer après re-render)
+  document.querySelectorAll('.macro-legend-btn').forEach(function(btn){
+    const key = btn.dataset.macro;
+    const on = _macroVisible[key];
+    btn.style.opacity = on ? '1' : '0.35';
+    btn.style.textDecoration = on ? 'none' : 'line-through';
   });
 }
 
