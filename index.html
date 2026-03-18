@@ -2352,7 +2352,19 @@ function renderKPI(s){
     {label:'Déficit moyen',value:Math.round(s.avgDailyDeficit).toLocaleString('fr-FR'),unit:'kcal/j',color:'blue'},
     ...sportKpis,
   ];
-  document.getElementById('kpiGrid').innerHTML=kpis.map(k=>`<div class="card${k.blur?' card-blur':''}"><div class="card-label">${k.label}</div><div class="card-value ${k.color}">${k.value}</div><div class="card-unit">${k.unit}</div></div>`).join('');
+  // KPI tension : moyenne 7 dernières mesures
+  if(tensions.length){
+    const last7t = tensions.slice(-7);
+    const tSys = Math.round(last7t.reduce(function(a,t){ return a+t.sys; },0)/last7t.length);
+    const tDia = Math.round(last7t.reduce(function(a,t){ return a+t.dia; },0)/last7t.length);
+    const tZone = tensionZone(tSys, tDia);
+    kpis.push({ label:'Tension (moy. '+last7t.length+'j)', value:tSys+'/'+tDia, unit:tZone.label, color:'indigo', _tensionColor: tZone.color });
+  }
+  document.getElementById('kpiGrid').innerHTML=kpis.map(k=>{
+    const valStyle = k._tensionColor ? `style="color:${k._tensionColor}"` : ``;
+    const unitStyle = k._tensionColor ? `style="color:${k._tensionColor};opacity:0.7"` : ``;
+    return `<div class="card${k.blur?' card-blur':''}"><div class="card-label">${k.label}</div><div class="card-value ${k._tensionColor?'':k.color}" ${valStyle}>${k.value}</div><div class="card-unit" ${unitStyle}>${k.unit}</div></div>`;
+  }).join('');
 
   // Afficher le warning si TDEE non initialisé (valeurs par défaut)
   const tdeeWarn = document.getElementById('tdeeWarning');
