@@ -596,6 +596,10 @@
           <label>Kcal/100g</label>
           <input type="number" id="refKcal" placeholder="ex: 130" style="width:100%" onkeydown="if(event.key==='Enter')addRef()">
         </div>
+        <div class="form-group" style="max-width:160px" id="refCatSelectWrap">
+          <label>Catégorie</label>
+          <select id="refCatSelect"><option value="">— Sans catégorie —</option></select>
+        </div>
         <button class="btn" onclick="toggleRefMacros()" id="btnRefMacros" style="display:none">+ Macros</button>
         <button class="btn" onclick="addRef()" style="align-self:flex-end">Ajouter</button>
       </div>
@@ -2359,7 +2363,7 @@ function refresh(){
   const s=computeStats();
   renderKPI(s); renderChartMain(s); renderChartDeficit(s); renderChartPoids(s); renderObjectifBanner();
   renderSaisieList(s); renderPoidsCards(s);
-  renderRefs(); renderCalcSelect(); renderCalcItems(); renderPeseeList(); renderVelo(); renderBilans(); renderAllSanteSections(); renderDocuments(); renderRecettes();
+  renderRefs(); renderRefCatSelect(); renderCalcSelect(); renderCalcItems(); renderPeseeList(); renderVelo(); renderBilans(); renderAllSanteSections(); renderDocuments(); renderRecettes();
   initCorrMarqueur();
   // Sync dashboard period buttons
   const periodMap={'mois_en_cours':0,'mois_precedent':1,'tout':2};
@@ -2871,8 +2875,22 @@ function addRefCat(){
   refCats.push({ id: refCatNextId++, nom });
   input.value = '';
   renderCatList();
+  renderRefCatSelect();
   renderRefs();
   saveData();
+}
+
+function renderRefCatSelect(){
+  const sel = document.getElementById('refCatSelect');
+  if(!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Sans catégorie —</option>'
+    + refCats.map(c=>`<option value="${c.id}">${c.nom}</option>`).join('');
+  // Restaurer la sélection si toujours valide
+  if(current && refCats.find(c=>String(c.id)===current)) sel.value = current;
+  // Cacher le select s'il n'y a aucune catégorie
+  const wrap = document.getElementById('refCatSelectWrap');
+  if(wrap) wrap.style.display = refCats.length > 0 ? '' : 'none';
 }
 
 function deleteRefCat(id){
@@ -2886,6 +2904,7 @@ function deleteRefCat(id){
   refs.forEach(r=>{ if(r.catId===id) delete r.catId; });
   refCats = refCats.filter(c=>c.id!==id);
   renderCatList();
+  renderRefCatSelect();
   renderRefs();
   saveData();
 }
@@ -2911,6 +2930,7 @@ function confirmRenameCat(id){
   const cat = refCats.find(c=>c.id===id);
   if(cat) cat.nom = nom;
   renderCatList();
+  renderRefCatSelect();
   renderRefs();
   saveData();
 }
@@ -3114,6 +3134,8 @@ function addRef(){
   if(!isNaN(lip)  && lip>=0)  entry.l = Math.round(lip/coef*10)/10;
   if(!isNaN(fib)  && fib>=0)  entry.f = Math.round(fib/coef*10)/10;
   if(cuit) entry.nom = nom + ' (cuit)';
+  const catSel = document.getElementById('refCatSelect');
+  if(catSel && catSel.value) entry.catId = parseInt(catSel.value);
   refs.push(entry);
   document.getElementById('refNom').value='';
   document.getElementById('refKcal').value='';
@@ -3122,6 +3144,7 @@ function addRef(){
   document.getElementById('refLip').value='';
   document.getElementById('refFib').value='';
   document.getElementById('refCuit').checked=false;
+  if(catSel) catSel.value='';
   renderRefs(); renderCalcSelect(); saveData();
 }
 
