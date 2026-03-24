@@ -149,7 +149,7 @@
   .ref-cat-header{display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:8px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);cursor:pointer;user-select:none;transition:background .15s}
   .ref-cat-header:hover{background:rgba(255,255,255,0.05)}
   .ref-cat-header.drop-target{background:rgba(249,115,22,0.1)!important;border-color:rgba(249,115,22,0.5)!important}
-  .ref-cat-title{font-size:12px;font-weight:600;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1px;flex:1}
+  .ref-cat-title{font-size:11px;font-weight:700;font-family:'Space Mono',monospace;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:2px;flex:1}
   .ref-cat-count{font-size:10px;color:rgba(255,255,255,0.25);font-family:'Space Mono',monospace}
   .ref-cat-toggle{font-size:10px;color:rgba(255,255,255,0.2);transition:transform .2s}
   .ref-cat-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
@@ -2994,6 +2994,21 @@ function saveRefEdit(id){
   if(!isNaN(g) && g>=0) refs[idx].g = Math.round(g*10)/10; else delete refs[idx].g;
   if(!isNaN(l) && l>=0) refs[idx].l = Math.round(l*10)/10; else delete refs[idx].l;
   if(!isNaN(f) && f>=0) refs[idx].f = Math.round(f*10)/10; else delete refs[idx].f;
+
+  // Mettre à jour les calcItems qui utilisent cette référence (grammes conservés)
+  const updatedRef = refs[idx];
+  calcItems.forEach(function(item){
+    if(item.refId !== id) return;
+    const ratio = item.grams / 100;
+    item.nom     = updatedRef.nom;
+    item.kcal100 = updatedRef.kcal100;
+    item.kcal    = Math.round(updatedRef.kcal100 * ratio);
+    if(updatedRef.p != null){ item.p = Math.round(updatedRef.p * ratio * 10)/10; item.p100 = updatedRef.p; } else { delete item.p; delete item.p100; }
+    if(updatedRef.g != null){ item.g = Math.round(updatedRef.g * ratio * 10)/10; item.g100 = updatedRef.g; } else { delete item.g; delete item.g100; }
+    if(updatedRef.l != null){ item.l = Math.round(updatedRef.l * ratio * 10)/10; item.l100 = updatedRef.l; } else { delete item.l; delete item.l100; }
+    if(updatedRef.f != null){ item.f = Math.round(updatedRef.f * ratio * 10)/10; item.f100 = updatedRef.f; } else { delete item.f; delete item.f100; }
+  });
+
   renderRefs(); renderCalcSelect(); renderCalcItems(); saveData();
 }
 
