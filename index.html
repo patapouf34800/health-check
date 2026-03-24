@@ -2789,7 +2789,7 @@ function renderRefItem(r){
   const moveMenu = refCats.length > 0 ? `
     <div style="position:relative;display:inline-block" id="move-menu-wrap-${r.id}">
       <button class="ref-move-btn" onclick="event.stopPropagation();toggleMoveMenu(${r.id})" title="Déplacer vers une catégorie">↗</button>
-      <div id="move-menu-${r.id}" style="display:none;position:absolute;z-index:200;right:0;top:100%;background:#13131a;border:1px solid rgba(249,115,22,0.3);border-radius:8px;min-width:150px;box-shadow:0 8px 24px rgba(0,0,0,0.6);overflow:hidden">
+      <div id="move-menu-${r.id}" class="ref-move-dropdown" style="display:none;position:absolute;z-index:200;right:0;top:100%;background:#13131a;border:1px solid rgba(249,115,22,0.3);border-radius:8px;min-width:150px;box-shadow:0 8px 24px rgba(0,0,0,0.6);overflow:hidden">
         ${moveTo}
       </div>
     </div>` : '';
@@ -2921,7 +2921,7 @@ function moveRefToCat(refId, catId){
   if(catId === null) delete ref.catId;
   else ref.catId = catId;
   // Fermer tous les menus
-  document.querySelectorAll('[id^="move-menu-"]').forEach(m=>m.style.display='none');
+  document.querySelectorAll('.ref-move-dropdown').forEach(m=>m.style.display='none');
   renderRefs();
   saveData();
 }
@@ -2929,22 +2929,11 @@ function moveRefToCat(refId, catId){
 function toggleMoveMenu(refId){
   const menu = document.getElementById('move-menu-'+refId);
   if(!menu) return;
-  const isOpen = menu.style.display !== 'none';
-  // Fermer tous
-  document.querySelectorAll('[id^="move-menu-"]').forEach(m=>m.style.display='none');
-  if(!isOpen) {
+  const isOpen = menu.style.display === 'block';
+  // Fermer tous les menus ouverts (classe précise, pas id^=)
+  document.querySelectorAll('.ref-move-dropdown').forEach(m=>{ m.style.display='none'; });
+  if(!isOpen){
     menu.style.display = 'block';
-    // Fermer au clic dehors
-    setTimeout(()=>{
-      function close(e){
-        const wrap = document.getElementById('move-menu-wrap-'+refId);
-        if(wrap && !wrap.contains(e.target)){
-          menu.style.display='none';
-          document.removeEventListener('click', close);
-        }
-      }
-      document.addEventListener('click', close);
-    }, 0);
   }
 }
 
@@ -7868,6 +7857,12 @@ async function initApp() {
   // Fermer modale aide au clic sur le fond
   const am = document.getElementById('aideModal');
   if(am) am.addEventListener('click', function(e){ if(e.target===this) this.style.display='none'; });
+  // Fermer les menus "déplacer vers" au clic en dehors
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('.ref-move-dropdown') && !e.target.closest('[id^="move-menu-wrap-"]')){
+      document.querySelectorAll('.ref-move-dropdown').forEach(m=>{ m.style.display='none'; });
+    }
+  });
   // Verrouillage auto à la fermeture de l'onglet
   window.addEventListener('beforeunload', () => { window._masterKey = null; });
   const _vd=document.getElementById('veloDate'); if(_vd) _vd.value=new Date().toISOString().split('T')[0];
