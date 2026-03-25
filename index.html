@@ -696,7 +696,7 @@
         <div class="form-group" style="max-width:140px">
           <label>Quantité (g)</label>
           <input type="number" id="recetteIngGrams" placeholder="ex: 300" style="width:100%"
-            onkeydown="if(event.key==='Enter') document.getElementById('recetteManuelToggle').style.display==='none' ? addRecetteIng() : null">
+            onkeydown="if(event.key==='Enter') document.getElementById('recetteManuelPanel').style.display==='none' ? addRecetteIng() : null">
         </div>
         <button class="btn" onclick="addRecetteIng()" style="align-self:flex-end">+ Ajouter</button>
       </div>
@@ -3189,7 +3189,7 @@ function deleteRef(id){
   if(!confirm(`Supprimer "${ref.nom}" ?`)) return;
   refs=refs.filter(r=>r.id!==id);
   calcItems=calcItems.filter(i=>i.refId!==id);
-  renderRefs(); renderCalcSelect(); renderCalcItems();
+  renderRefs(); renderCalcSelect(); renderCalcItems(); saveData();
 }
 
 /* ── RECETTES ── */
