@@ -1317,6 +1317,24 @@
       </div>
     </div>
 
+    <!-- Radar macros vs cibles -->
+    <div class="chart-card" id="macroRadarCard">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+        <div>
+          <div class="chart-title" style="margin-bottom:2px">🕸️ Profil macros vs cibles</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.25)">Moyenne sur la période sélectionnée</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(255,255,255,0.4)"><span style="width:20px;height:2px;background:#f97316;display:inline-block;border-radius:2px"></span>Réel</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(255,255,255,0.4)"><span style="width:20px;height:2px;background:rgba(255,255,255,0.25);display:inline-block;border-radius:2px;border-top:2px dashed rgba(255,255,255,0.25)"></span>Objectif</span>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;align-items:center;min-height:280px" id="macroRadarWrap">
+        <canvas id="chartMacroRadar" style="max-width:360px;max-height:360px"></canvas>
+      </div>
+      <p class="empty-msg" id="macroRadarEmpty" style="display:none">Aucune donnée macro sur cette période.</p>
+    </div>
+
     <!-- Bandeau cibles macros -->
     <div class="chart-card" id="nutriCiblesCard">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -6623,6 +6641,7 @@ function getNutriDays(){
 
 function renderNutri(){
   renderNutriCibles();
+  renderMacroRadar();
   const filtered = getNutriDays().filter(function(d){ return d.p!=null||d.g!=null||d.l!=null||d.f!=null; });
 
   if(!filtered.length){
@@ -6829,6 +6848,112 @@ function getNutriCibles(){
   const fibres = 25;
   // Glucides : pas de cible — pas de minimum physiologique établi
   return { prot, protMin, protMax, lip, fibres, poids, kcal };
+}
+
+function renderMacroRadar(){
+  const wrap  = document.getElementById('macroRadarCard');
+  const empty = document.getElementById('macroRadarEmpty');
+  const canvasWrap = document.getElementById('macroRadarWrap');
+  if(!wrap) return;
+
+  const filtered = getNutriDays().filter(function(d){ return d.p!=null||d.g!=null||d.l!=null||d.f!=null; });
+
+  if(!filtered.length){
+    if(charts['macroRadar']){ charts['macroRadar'].destroy(); delete charts['macroRadar']; }
+    if(canvasWrap) canvasWrap.style.display = 'none';
+    if(empty) empty.style.display = '';
+    return;
+  }
+  if(canvasWrap) canvasWrap.style.display = '';
+  if(empty) empty.style.display = 'none';
+
+  const n = filtered.length;
+  const avgP = parseFloat((filtered.reduce(function(s,d){ return s+(d.p||0); },0)/n).toFixed(1));
+  const avgG = parseFloat((filtered.reduce(function(s,d){ return s+(d.g||0); },0)/n).toFixed(1));
+  const avgL = parseFloat((filtered.reduce(function(s,d){ return s+(d.l||0); },0)/n).toFixed(1));
+  const avgF = parseFloat((filtered.reduce(function(s,d){ return s+(d.f||0); },0)/n).toFixed(1));
+
+  const c = getNutriCibles();
+  // Glucides : pas de cible officielle — on utilise 50% des kcal / 4 comme référence indicative
+  const glucCible = Math.round((c.kcal * 0.50) / 4);
+
+  // Normaliser chaque macro en % de sa cible (plafonné à 150% pour lisibilité)
+  function pct(val, cible){ return cible > 0 ? Math.min(Math.round(val/cible*100), 150) : 0; }
+  const pctP = pct(avgP, c.protMin);
+  const pctG = pct(avgG, glucCible);
+  const pctL = pct(avgL, c.lip);
+  const pctF = pct(avgF, c.fibres);
+
+  const labels = [
+    'Protéines\n'+avgP+'g / '+c.protMin+'g',
+    'Glucides\n'+avgG+'g / '+glucCible+'g',
+    'Lipides\n'+avgL+'g / '+c.lip+'g',
+    'Fibres\n'+avgF+'g / '+c.fibres+'g'
+  ];
+
+  if(charts['macroRadar']) charts['macroRadar'].destroy();
+  const ctx = document.getElementById('chartMacroRadar').getContext('2d');
+  charts['macroRadar'] = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Réel (moy.)',
+          data: [pctP, pctG, pctL, pctF],
+          borderColor: '#f97316',
+          backgroundColor: 'rgba(249,115,22,0.15)',
+          borderWidth: 2,
+          pointBackgroundColor: '#f97316',
+          pointRadius: 4
+        },
+        {
+          label: 'Objectif (100%)',
+          data: [100, 100, 100, 100],
+          borderColor: 'rgba(255,255,255,0.2)',
+          backgroundColor: 'rgba(255,255,255,0.04)',
+          borderWidth: 1.5,
+          borderDash: [5, 4],
+          pointBackgroundColor: 'rgba(255,255,255,0.3)',
+          pointRadius: 3
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      scales: {
+        r: {
+          min: 0,
+          max: 150,
+          ticks: {
+            stepSize: 50,
+            color: 'rgba(255,255,255,0.2)',
+            font: { size: 9 },
+            backdropColor: 'transparent',
+            callback: function(v){ return v === 100 ? '100%' : v+'%'; }
+          },
+          grid:        { color: 'rgba(255,255,255,0.07)' },
+          angleLines:  { color: 'rgba(255,255,255,0.07)' },
+          pointLabels: {
+            color: 'rgba(255,255,255,0.55)',
+            font: { size: 11, family: 'sans-serif' }
+          }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx){
+              const val = ctx.raw;
+              return ctx.dataset.label+' : '+val+'%';
+            }
+          }
+        }
+      }
+    }
+  });
 }
 
 function renderNutriCibles(){
