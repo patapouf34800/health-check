@@ -1399,6 +1399,13 @@
       <div id="bilanHebdoTable"></div>
     </div>
 
+    <!-- Bloc répartition chronobiologique -->
+    <div class="chart-card" id="bilanHebdoChrono" style="display:none">
+      <div class="chart-title" style="margin-bottom:4px">⏰ Répartition par moment de la journée</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.25);margin-bottom:16px" id="bilanHebdoChronoSubtitle"></div>
+      <div id="bilanHebdoChronoContent"></div>
+    </div>
+
     <!-- Bloc conseil (toujours visible, se remplit progressivement) -->
     <div class="chart-card" id="bilanHebdoConseils">
       <div class="chart-title" style="margin-bottom:12px" id="bilanHebdoConseilsTitre">💡 Analyse & ajustements semaine suivante</div>
@@ -6704,7 +6711,204 @@ function renderBilanHebdo(){
     if(bons.length > 0) conseils += '<div style="font-size:11px;color:rgba(255,255,255,0.25);margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.05)">'+bons.join(' · ')+'</div>';
   }
   document.getElementById('bilanHebdoConseillsContent').innerHTML = conseils;
+
+  // ── Répartition chronobiologique ──────────────────────────────────────────
+  renderBilanHebdoChrono(withData);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Analyse de la répartition par moment de la journée (chrono-nutrition)
+// Références : nutritionnistes / PNNS — PD 25%, DJ 40%, EN 5%, DN 30%
+// ─────────────────────────────────────────────────────────────────────────────
+function renderBilanHebdoChrono(withData){
+  const card = document.getElementById('bilanHebdoChrono');
+  const content = document.getElementById('bilanHebdoChronoContent');
+  const subtitle = document.getElementById('bilanHebdoChronoSubtitle');
+  if(!card || !content) return;
+
+  // Filtrer uniquement les jours ayant une repasRepartition
+  const daysWithRepas = withData.filter(function(d){ return d.data && d.data.repasRepartition; });
+  const n = daysWithRepas.length;
+
+  if(n === 0){
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+  subtitle.textContent = 'Moyenne sur ' + n + ' jour' + (n > 1 ? 's' : '') + ' avec répartition repas enregistrée';
+
+  // Cibles recommandées (% des kcal journalières) — source nutritionnistes/PNNS
+  var CIBLES_KCAL = { petit_dejeuner: 25, dejeuner: 40, encas: 5, diner: 30 };
+  var REPAS_META_LOCAL = {
+    petit_dejeuner: { label: 'Petit déjeuner', icon: '🌅', color: '#fbbf24' },
+    dejeuner:       { label: 'Déjeuner',       icon: '☀️',  color: '#f97316' },
+    encas:          { label: 'En-cas',          icon: '🍎',  color: '#4ade80' },
+    diner:          { label: 'Dîner',           icon: '🌙',  color: '#818cf8' }
+  };
+  var ORDER = ['petit_dejeuner', 'dejeuner', 'encas', 'diner'];
+
+  // Calculer les moyennes par repas
+  var totaux = {};
+  ORDER.forEach(function(r){ totaux[r] = { kcal: 0, p: 0, g: 0, l: 0, f: 0, count: 0 }; });
+
+  daysWithRepas.forEach(function(d){
+    var rr = d.data.repasRepartition;
+    ORDER.forEach(function(r){
+      var rep = rr[r];
+      if(!rep) return;
+      totaux[r].kcal += (rep.kcal || 0);
+      totaux[r].p += (rep.p || 0);
+      totaux[r].g += (rep.g || 0);
+      totaux[r].l += (rep.l || 0);
+      totaux[r].f += (rep.f || 0);
+      if(rep.kcal > 0) totaux[r].count++;
+    });
+  });
+
+  var moyennes = {};
+  ORDER.forEach(function(r){
+    moyennes[r] = {
+      kcal: Math.round(totaux[r].kcal / n),
+      p: Math.round(totaux[r].p / n * 10) / 10,
+      g: Math.round(totaux[r].g / n * 10) / 10,
+      l: Math.round(totaux[r].l / n * 10) / 10,
+      f: Math.round(totaux[r].f / n * 10) / 10
+    };
+  });
+
+  var totalKcal = ORDER.reduce(function(s, r){ return s + moyennes[r].kcal; }, 0);
+  var totalP = ORDER.reduce(function(s, r){ return s + moyennes[r].p; }, 0);
+  var totalG = ORDER.reduce(function(s, r){ return s + moyennes[r].g; }, 0);
+  var totalL = ORDER.reduce(function(s, r){ return s + moyennes[r].l; }, 0);
+
+  if(totalKcal === 0){ card.style.display = 'none'; return; }
+
+  // ── Barre de répartition kcal ──────────────────────────────────────────────
+  var barSegments = ORDER.map(function(r){
+    var pct = totalKcal > 0 ? Math.round(moyennes[r].kcal / totalKcal * 100) : 0;
+    var meta = REPAS_META_LOCAL[r];
+    return '<div style="flex:'+pct+';background:'+meta.color+';height:100%;min-width:'+(pct>0?'4px':'0')
+      +';position:relative;transition:flex .4s" title="'+meta.label+' : '+pct+'%">'
+      +(pct >= 8 ? '<span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:10px;color:#000;font-weight:700;font-family:\'Space Mono\',monospace;white-space:nowrap">'+pct+'%</span>' : '')
+      +'</div>';
+  }).join('');
+
+  // ── Tableau détaillé par repas ──────────────────────────────────────────────
+  var rows = ORDER.map(function(r){
+    var m = moyennes[r];
+    if(m.kcal === 0 && m.p === 0 && m.g === 0) return ''; // repas absent
+    var meta = REPAS_META_LOCAL[r];
+    var pctKcal = totalKcal > 0 ? Math.round(m.kcal / totalKcal * 100) : 0;
+    var pctP    = totalP > 0 ? Math.round(m.p / totalP * 100) : 0;
+    var pctG    = totalG > 0 ? Math.round(m.g / totalG * 100) : 0;
+    var pctL    = totalL > 0 ? Math.round(m.l / totalL * 100) : 0;
+    var cible   = CIBLES_KCAL[r];
+    var ecart   = pctKcal - cible;
+    var ecartStr = (ecart > 0 ? '+' : '') + ecart + '%';
+    var ecartColor = Math.abs(ecart) <= 5 ? '#22c55e' : Math.abs(ecart) <= 12 ? '#facc15' : '#ef4444';
+
+    // Mini barre kcal
+    var barW = Math.min(pctKcal * 2, 100); // max 50% => 100%
+    return '<div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04)">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
+      +'<div style="font-size:18px;width:24px;text-align:center">'+meta.icon+'</div>'
+      +'<div style="flex:1">'
+      +'<div style="font-size:12px;font-weight:600;color:'+meta.color+'">'+meta.label+'</div>'
+      +'<div style="font-size:10px;color:rgba(255,255,255,0.25);margin-top:1px">cible : '+cible+'% des kcal journalières</div>'
+      +'</div>'
+      +'<div style="text-align:right">'
+      +'<div style="font-family:\'Space Mono\',monospace;font-size:14px;color:'+meta.color+'">'+pctKcal+'%'
+      +' <span style="font-size:11px;color:rgba(255,255,255,0.3)">'+m.kcal+' kcal</span></div>'
+      +'<div style="font-size:10px;color:'+ecartColor+'">'+ecartStr+' vs cible</div>'
+      +'</div>'
+      +'</div>'
+      // Barre kcal
+      +'<div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.05);overflow:hidden;margin-bottom:8px">'
+      +'<div style="height:100%;width:'+barW+'%;background:'+meta.color+';opacity:0.7;border-radius:2px"></div>'
+      +'</div>'
+      // Macros répartition
+      +'<div style="display:flex;gap:14px;flex-wrap:wrap">'
+      +(totalP > 0 ? '<div style="font-size:10px;color:rgba(255,255,255,0.35)">Prot <span style="color:#f97316;font-family:\'Space Mono\',monospace">'+pctP+'%</span> ('+m.p+'g)</div>' : '')
+      +(totalG > 0 ? '<div style="font-size:10px;color:rgba(255,255,255,0.35)">Gluc <span style="color:#38bdf8;font-family:\'Space Mono\',monospace">'+pctG+'%</span> ('+m.g+'g)</div>' : '')
+      +(totalL > 0 ? '<div style="font-size:10px;color:rgba(255,255,255,0.35)">Lip <span style="color:#a78bfa;font-family:\'Space Mono\',monospace">'+pctL+'%</span> ('+m.l+'g)</div>' : '')
+      +'</div>'
+      +'</div>';
+  }).join('');
+
+  // ── Observations intelligentes ─────────────────────────────────────────────
+  var obs = [];
+
+  // % kcal le matin
+  var pctPD = totalKcal > 0 ? Math.round(moyennes['petit_dejeuner'].kcal / totalKcal * 100) : 0;
+  var pctDJ = totalKcal > 0 ? Math.round(moyennes['dejeuner'].kcal / totalKcal * 100) : 0;
+  var pctDN = totalKcal > 0 ? Math.round(moyennes['diner'].kcal / totalKcal * 100) : 0;
+
+  // % protéines le matin
+  var pctProt_PD = totalP > 0 ? Math.round(moyennes['petit_dejeuner'].p / totalP * 100) : 0;
+  var pctProt_DN = totalP > 0 ? Math.round(moyennes['diner'].p / totalP * 100) : 0;
+  var pctProt_DJ = totalP > 0 ? Math.round(moyennes['dejeuner'].p / totalP * 100) : 0;
+
+  // Observation 1 : répartition matin vs soir
+  if(pctPD > 0 && pctDN > 0){
+    if(pctDN > pctDJ && pctDN > pctPD){
+      obs.push({ icon: '🌙', color: '#818cf8', text: 'Le dîner représente <strong style="color:#818cf8">'+pctDN+'% des calories</strong> — c\'est ton repas le plus lourd. Les recommandations suggèrent de placer le maximum calorique au déjeuner (≈ 40%).' });
+    } else if(pctDJ >= 35 && pctDJ <= 50){
+      obs.push({ icon: '✅', color: '#22c55e', text: 'Le déjeuner représente <strong style="color:#22c55e">'+pctDJ+'% des calories</strong> — conforme aux recommandations nutritionnelles (cible : 40%).' });
+    }
+  }
+
+  // Observation 2 : protéines le matin
+  if(moyennes['petit_dejeuner'].p > 0 && pctProt_PD < 15 && totalP > 0){
+    obs.push({ icon: '🥚', color: '#f97316', text: 'Seulement <strong style="color:#f97316">'+pctProt_PD+'% des protéines</strong> au petit déjeuner. Intégrer une source protéique le matin (œufs, fromage blanc, légumineuses) aide à la satiété et à la synthèse musculaire.' });
+  } else if(pctProt_PD >= 20){
+    obs.push({ icon: '✅', color: '#22c55e', text: 'Bon apport protéique au petit déjeuner (<strong style="color:#22c55e">'+pctProt_PD+'%</strong> des protéines journalières) — excellent pour la satiété matinale.' });
+  }
+
+  // Observation 3 : protéines le soir élevées
+  if(pctProt_DN > 45){
+    obs.push({ icon: '⚠', color: '#facc15', text: '<strong style="color:#facc15">'+pctProt_DN+'% des protéines</strong> consommées au dîner. Répartir davantage les protéines sur la journée optimise l\'absorption et la synthèse musculaire (idéalement ≤ 35% au dîner).' });
+  }
+
+  // Observation 4 : petit déjeuner absent ou très léger
+  if(pctPD === 0){
+    obs.push({ icon: 'ℹ️', color: 'rgba(255,255,255,0.4)', text: 'Aucun petit déjeuner enregistré cette semaine. Si c\'est un choix (jeûne intermittent), c\'est une stratégie valide. Sinon, un petit déjeuner à 25% des kcal soutient le métabolisme matinal.' });
+  } else if(pctPD < 12){
+    obs.push({ icon: '🌅', color: '#fbbf24', text: 'Petit déjeuner léger (<strong style="color:#fbbf24">'+pctPD+'%</strong> des kcal). Le métabolisme est plus actif le matin — un apport de 20-25% améliore la thermogenèse et la gestion de l\'appétit.' });
+  }
+
+  var obsHtml = obs.length > 0
+    ? obs.map(function(o){
+        return '<div style="display:flex;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.02);border-left:3px solid '+o.color+';margin-bottom:6px">'
+          +'<div style="font-size:16px;margin-top:1px">'+o.icon+'</div>'
+          +'<div style="font-size:12px;color:rgba(255,255,255,0.6);line-height:1.5">'+o.text+'</div>'
+          +'</div>';
+      }).join('')
+    : '';
+
+  // ── Rendu final ────────────────────────────────────────────────────────────
+  content.innerHTML =
+    // Barre graphique
+    '<div style="height:28px;display:flex;border-radius:8px;overflow:hidden;margin-bottom:10px">'+barSegments+'</div>'
+    // Légende couleurs
+    +'<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px">'
+    + ORDER.filter(function(r){ return moyennes[r].kcal > 0; }).map(function(r){
+        var m = REPAS_META_LOCAL[r];
+        var pct = totalKcal > 0 ? Math.round(moyennes[r].kcal / totalKcal * 100) : 0;
+        return '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,0.45)">'
+          +'<div style="width:10px;height:10px;border-radius:2px;background:'+m.color+'"></div>'
+          +m.icon+' '+m.label+' ('+pct+'%)</div>';
+      }).join('')
+    +'</div>'
+    // Détail par repas
+    + rows
+    // Observations
+    + (obsHtml ? '<div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06)">'
+      +'<div style="font-size:10px;color:rgba(255,255,255,0.25);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Observations</div>'
+      + obsHtml
+      +'<div style="font-size:10px;color:rgba(255,255,255,0.15);margin-top:10px;font-style:italic">Références : nutritionnistes / PNNS — cibles indicatives, non contractuelles.</div>'
+      +'</div>' : '');
+}
+
 
 
 
