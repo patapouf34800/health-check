@@ -193,6 +193,13 @@
   .total-value{font-family:'Space Mono',monospace;font-size:28px;font-weight:700;color:#f97316}
 
   .green{color:#22c55e}.red{color:#ef4444}.orange{color:#f97316}.indigo{color:#818cf8}.blue{color:#38bdf8}.yellow{color:#facc15}
+  .repas-btn{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.45);border-radius:20px;padding:6px 14px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:500;transition:all .2s;white-space:nowrap}
+  .repas-btn:hover{color:rgba(255,255,255,0.75);border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.07)}
+  .repas-btn.active{background:rgba(249,115,22,0.15);border-color:rgba(249,115,22,0.5);color:#f97316}
+  .repas-section{margin-top:12px}
+  .repas-header{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:rgba(255,255,255,0.03);border-radius:8px;margin-bottom:6px;border:1px solid rgba(255,255,255,0.06)}
+  .repas-header-label{font-size:11px;font-weight:700;color:rgba(255,255,255,0.45);text-transform:uppercase;letter-spacing:1.5px}
+  .repas-header-kcal{font-family:'Space Mono',monospace;font-size:12px;color:rgba(249,115,22,0.7)}
   .card-blur .card-value,.card-blur .card-unit{filter:blur(6px);transition:filter .3s ease}
   .card-blur:hover .card-value,.card-blur:hover .card-unit{filter:blur(0)}
   .pesee-blur{filter:blur(6px);transition:filter .3s ease}
@@ -513,6 +520,14 @@
 
     <div class="chart-card">
       <div class="chart-title">Composer ma journée</div>
+
+      <!-- Sélecteur de repas -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px" id="repasSelector">
+        <button class="repas-btn active" data-repas="petit_dejeuner" onclick="setRepasActif('petit_dejeuner',this)">🌅 Petit déjeuner</button>
+        <button class="repas-btn" data-repas="dejeuner" onclick="setRepasActif('dejeuner',this)">☀️ Déjeuner</button>
+        <button class="repas-btn" data-repas="diner" onclick="setRepasActif('diner',this)">🌙 Dîner</button>
+        <button class="repas-btn" data-repas="encas" onclick="setRepasActif('encas',this)">🍎 Encas</button>
+      </div>
 
       <div class="form-row" style="align-items:flex-start">
         <div class="form-group" style="position:relative;flex:1">
@@ -1466,6 +1481,22 @@ let refNextId = 20;
 let refCats = []; // [{ id, nom }]
 let refCatNextId = 1;
 let calcItems = [];
+var _calcRepasActif = 'petit_dejeuner'; // repas sélectionné dans le calculateur
+
+const REPAS_META = {
+  petit_dejeuner: { label:'Petit déjeuner', icon:'🌅' },
+  dejeuner:       { label:'Déjeuner',        icon:'☀️' },
+  diner:          { label:'Dîner',           icon:'🌙' },
+  encas:          { label:'Encas',           icon:'🍎' },
+};
+const REPAS_ORDER = ['petit_dejeuner','dejeuner','diner','encas'];
+
+function setRepasActif(repas, btn){
+  _calcRepasActif = repas;
+  document.querySelectorAll('.repas-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+}
+
 let activePeriod = 'mois_en_cours'; // 'tout', 'mois_en_cours', 'mois_precedent'
 let veloActivePeriod = 'tout';
 let tensionActivePeriod = 'tout';
@@ -3718,7 +3749,7 @@ function addCalcItem(){
   const ratio = grams / 100;
   const kcal = Math.round(_calcSelectedItem.kcal100 * ratio);
   const ref = refs.find(function(r){ return r.nom === _calcSelectedItem.nom; });
-  const item = { refId: ref ? ref.id : null, nom: _calcSelectedItem.nom, grams: grams, kcal: kcal, kcal100: _calcSelectedItem.kcal100 };
+  const item = { refId: ref ? ref.id : null, nom: _calcSelectedItem.nom, grams: grams, kcal: kcal, kcal100: _calcSelectedItem.kcal100, repas: _calcRepasActif };
   if(_calcSelectedItem.p != null){ item.p = Math.round(_calcSelectedItem.p * ratio * 10) / 10; item.p100 = _calcSelectedItem.p; }
   if(_calcSelectedItem.g != null){ item.g = Math.round(_calcSelectedItem.g * ratio * 10) / 10; item.g100 = _calcSelectedItem.g; }
   if(_calcSelectedItem.l != null){ item.l = Math.round(_calcSelectedItem.l * ratio * 10) / 10; item.l100 = _calcSelectedItem.l; }
@@ -3738,22 +3769,48 @@ function renderCalcItems(){
   if(!calcItems.length){
     el.innerHTML='<p class="empty-msg">Aucun aliment ajouté pour cette journée.</p>';
   } else {
-    el.innerHTML=calcItems.map((item,i)=>`
-      <div class="calc-row">
-        <span class="calc-food">${item.nom}</span>
-        <label style="display:flex;align-items:center;gap:4px;cursor:text">
-          <input type="number" class="calc-grams-input" value="${item.grams}" min="1" step="1"
-            style="width:62px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;padding:3px 7px;font-size:13px;font-family:'Space Mono',monospace;text-align:right;outline:none;transition:border-color .15s"
-            onfocus="this.style.borderColor='#f97316'"
-            onblur="this.style.borderColor='rgba(255,255,255,0.12)';updateCalcItemGrams(${i},this.value)"
-            onkeydown="if(event.key==='Enter'){this.blur();} if(event.key==='Escape'){this.value=${item.grams};this.blur();}"
-            onclick="event.stopPropagation();this.select()"
-          >
-          <span style="font-size:12px;color:rgba(255,255,255,0.3)">g</span>
-        </label>
-        <span class="calc-kcal" id="calc-kcal-${i}">${item.kcal.toLocaleString('fr-FR')} kcal</span>
-        <button class="calc-del" onclick="removeCalcItem(${i})">×</button>
-      </div>`).join('');
+    // Grouper par repas
+    const groups = {};
+    REPAS_ORDER.forEach(r=>{ groups[r]=[]; });
+    calcItems.forEach((item,i)=>{
+      const r = item.repas || 'dejeuner';
+      if(!groups[r]) groups[r]=[];
+      groups[r].push({item,i});
+    });
+
+    let html = '';
+    REPAS_ORDER.forEach(repas=>{
+      const grp = groups[repas];
+      if(!grp.length) return;
+      const meta = REPAS_META[repas];
+      const sousTotal = grp.reduce((s,{item})=>s+item.kcal,0);
+      html += `<div class="repas-section">
+        <div class="repas-header">
+          <span class="repas-header-label">${meta.icon} ${meta.label}</span>
+          <span class="repas-header-kcal">${sousTotal.toLocaleString('fr-FR')} kcal</span>
+        </div>`;
+      html += grp.map(({item,i})=>`
+        <div class="calc-row">
+          <span class="calc-food">${item.nom}</span>
+          <label style="display:flex;align-items:center;gap:4px;cursor:text">
+            <input type="number" class="calc-grams-input" value="${item.grams}" min="1" step="1"
+              style="width:62px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;padding:3px 7px;font-size:13px;font-family:'Space Mono',monospace;text-align:right;outline:none;transition:border-color .15s"
+              onfocus="this.style.borderColor='#f97316'"
+              onblur="this.style.borderColor='rgba(255,255,255,0.12)';updateCalcItemGrams(${i},this.value)"
+              onkeydown="if(event.key==='Enter'){this.blur();} if(event.key==='Escape'){this.value=${item.grams};this.blur();}"
+              onclick="event.stopPropagation();this.select()"
+            >
+            <span style="font-size:12px;color:rgba(255,255,255,0.3)">g</span>
+          </label>
+          <select onchange="changeCalcItemRepas(${i},this.value)" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.5);border-radius:6px;padding:3px 7px;font-size:11px;font-family:inherit;cursor:pointer;outline:none">
+            ${REPAS_ORDER.map(r=>`<option value="${r}" ${(item.repas||'dejeuner')===r?'selected':''}>${REPAS_META[r].icon} ${REPAS_META[r].label}</option>`).join('')}
+          </select>
+          <span class="calc-kcal" id="calc-kcal-${i}">${item.kcal.toLocaleString('fr-FR')} kcal</span>
+          <button class="calc-del" onclick="removeCalcItem(${i})">×</button>
+        </div>`).join('');
+      html += `</div>`;
+    });
+    el.innerHTML = html;
   }
   const total=calcItems.reduce((s,i)=>s+i.kcal,0);
   document.getElementById('calcTotalVal').textContent=total.toLocaleString('fr-FR')+' kcal';
@@ -3780,6 +3837,8 @@ function renderCalcItems(){
 }
 
 function removeCalcItem(i){ if(!confirm('Retirer "'+calcItems[i].nom+'" de la liste ?')) return; calcItems.splice(i,1); renderCalcItems(); saveData(); }
+
+function changeCalcItemRepas(i, repas){ calcItems[i].repas = repas; renderCalcItems(); saveData(); }
 
 function updateCalcItemGrams(i, rawVal){
   const grams = parseFloat(rawVal);
@@ -3810,6 +3869,29 @@ function clearCalc(){
   renderCalcItems(); saveData();
 }
 
+function buildRepasRepartition(items){
+  const rep = {};
+  REPAS_ORDER.forEach(r=>{ rep[r]={kcal:0,p:0,g:0,l:0,f:0,hasP:false,hasG:false,hasL:false,hasF:false}; });
+  items.forEach(function(item){
+    const r = item.repas || 'dejeuner';
+    if(!rep[r]) rep[r]={kcal:0,p:0,g:0,l:0,f:0,hasP:false,hasG:false,hasL:false,hasF:false};
+    rep[r].kcal += item.kcal;
+    if(item.p!=null){rep[r].p+=item.p;rep[r].hasP=true;}
+    if(item.g!=null){rep[r].g+=item.g;rep[r].hasG=true;}
+    if(item.l!=null){rep[r].l+=item.l;rep[r].hasL=true;}
+    if(item.f!=null){rep[r].f+=item.f;rep[r].hasF=true;}
+  });
+  // Arrondir
+  REPAS_ORDER.forEach(r=>{
+    rep[r].kcal=Math.round(rep[r].kcal);
+    rep[r].p=Math.round(rep[r].p*10)/10;
+    rep[r].g=Math.round(rep[r].g*10)/10;
+    rep[r].l=Math.round(rep[r].l*10)/10;
+    rep[r].f=Math.round(rep[r].f*10)/10;
+  });
+  return rep;
+}
+
 function validerJournee(){
   const total=calcItems.reduce((s,i)=>s+i.kcal,0);
   if(total===0){alert('Aucun aliment dans la journée.');return;}
@@ -3836,6 +3918,7 @@ function validerJournee(){
     days[i].objectif = getObjectif(); // Rafraîchir l'objectif (peut avoir changé)
     days[i].items = calcItems.map(function(item){ return Object.assign({},item); });
     days[i].cibles = getNutriCibles();
+    days[i].repasRepartition = buildRepasRepartition(calcItems);
     // Mettre à jour chaque macro indépendamment
     if(hasP) days[i].p=tp; else delete days[i].p;
     if(hasG) days[i].g=tg; else delete days[i].g;
@@ -3887,6 +3970,7 @@ function validerJournee(){
     // Ajouter les items au détail existant
     days[existing].items = (days[existing].items || []).concat(calcItems.map(function(i){ return Object.assign({},i); }));
     days[existing].cibles = getNutriCibles();
+    days[existing].repasRepartition = buildRepasRepartition(days[existing].items);
   } else {
     const day={date:dateVal,label,calories:total,objectif:getObjectif(),note:calcNoteVal||undefined};
     if(hasP) day.p=tp;
@@ -3895,6 +3979,7 @@ function validerJournee(){
     if(hasF) day.f=tf;
     day.items = calcItems.map(function(i){ return Object.assign({},i); });
     day.cibles = getNutriCibles();
+    day.repasRepartition = buildRepasRepartition(calcItems);
     days.push(day);
     days.sort((a,b)=>a.date.localeCompare(b.date));
   }
