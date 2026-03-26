@@ -6937,9 +6937,7 @@ function renderRepasRepartition(){
   const wrap   = document.getElementById('repasRepartWrap');
   if(!card) return;
 
-  // Récupérer les 7 derniers jours (tous jours confondus) ayant une repasRepartition
-  const daysWithRepas = days.filter(function(d){ return d.repasRepartition; })
-                             .slice(-7);
+  const daysWithRepas = days.filter(function(d){ return d.repasRepartition; }).slice(-7);
 
   if(!daysWithRepas.length){
     if(charts['repasRepartition']){ charts['repasRepartition'].destroy(); delete charts['repasRepartition']; }
@@ -6951,197 +6949,127 @@ function renderRepasRepartition(){
   if(empty) empty.style.display = 'none';
 
   const n = daysWithRepas.length;
-
-  // Sous-titre dynamique
   const sub = document.getElementById('repasRepartSubtitle');
   if(sub) sub.textContent = 'Moyenne sur les '+n+' dernier'+(n>1?'s':'')+' jour'+(n>1?'s':'')+' avec données de repas';
 
-  // ── Calcul des moyennes par repas ──
-  const avgKcal = {}, avgP = {}, avgG = {}, avgL = {}, avgF = {};
-  REPAS_ORDER.forEach(function(r){
-    avgKcal[r] = 0; avgP[r] = 0; avgG[r] = 0; avgL[r] = 0; avgF[r] = 0;
-  });
-  var avgTotal = 0;
+  // ── Moyennes par repas ──
+  const avg = {};
+  REPAS_ORDER.forEach(function(r){ avg[r] = { kcal:0, p:0, g:0, l:0, f:0 }; });
+  var avgTotalKcal=0, avgTotalP=0, avgTotalG=0, avgTotalL=0, avgTotalF=0;
 
   daysWithRepas.forEach(function(d){
-    avgTotal += d.calories || 0;
+    avgTotalKcal += d.calories || 0;
     REPAS_ORDER.forEach(function(r){
       var rep = d.repasRepartition[r];
       if(!rep) return;
-      avgKcal[r] += rep.kcal || 0;
-      avgP[r]    += rep.p    || 0;
-      avgG[r]    += rep.g    || 0;
-      avgL[r]    += rep.l    || 0;
-      avgF[r]    += rep.f    || 0;
+      avg[r].kcal += rep.kcal || 0;
+      avg[r].p    += rep.p    || 0;
+      avg[r].g    += rep.g    || 0;
+      avg[r].l    += rep.l    || 0;
+      avg[r].f    += rep.f    || 0;
     });
   });
   REPAS_ORDER.forEach(function(r){
-    avgKcal[r] = Math.round(avgKcal[r] / n);
-    avgP[r]    = Math.round(avgP[r]    / n * 10) / 10;
-    avgG[r]    = Math.round(avgG[r]    / n * 10) / 10;
-    avgL[r]    = Math.round(avgL[r]    / n * 10) / 10;
-    avgF[r]    = Math.round(avgF[r]    / n * 10) / 10;
+    avg[r].kcal = Math.round(avg[r].kcal / n);
+    avg[r].p    = Math.round(avg[r].p / n * 10) / 10;
+    avg[r].g    = Math.round(avg[r].g / n * 10) / 10;
+    avg[r].l    = Math.round(avg[r].l / n * 10) / 10;
+    avg[r].f    = Math.round(avg[r].f / n * 10) / 10;
+    avgTotalP += avg[r].p; avgTotalG += avg[r].g;
+    avgTotalL += avg[r].l; avgTotalF += avg[r].f;
   });
-  avgTotal = Math.round(avgTotal / n);
+  avgTotalKcal = Math.round(avgTotalKcal / n);
+  avgTotalP = Math.round(avgTotalP*10)/10;
+  avgTotalG = Math.round(avgTotalG*10)/10;
+  avgTotalL = Math.round(avgTotalL*10)/10;
+  avgTotalF = Math.round(avgTotalF*10)/10;
 
-  // ── Couleurs par repas ──
   const REPAS_COLORS = {
-    petit_dejeuner: { fill: 'rgba(251,191,36,0.85)',  border: '#fbbf24' },
-    dejeuner:       { fill: 'rgba(249,115,22,0.85)',  border: '#f97316' },
-    diner:          { fill: 'rgba(129,140,248,0.85)', border: '#818cf8' },
-    encas:          { fill: 'rgba(74,222,128,0.85)',  border: '#4ade80' },
+    petit_dejeuner: { fill: 'rgba(251,191,36,0.82)',  border: '#fbbf24' },
+    dejeuner:       { fill: 'rgba(249,115,22,0.82)',  border: '#f97316' },
+    diner:          { fill: 'rgba(129,140,248,0.82)', border: '#818cf8' },
+    encas:          { fill: 'rgba(74,222,128,0.82)',  border: '#4ade80' },
   };
 
-  // ── Graphique barres horizontales empilées (kcal) ──
-  if(charts['repasRepartition']) charts['repasRepartition'].destroy();
-  const ctx = document.getElementById('chartRepasRepartition').getContext('2d');
+  // ── Métriques à afficher : une ligne chacune ──
+  const metrics = [
+    { key:'kcal', label:'Calories',  unit:'kcal', total:avgTotalKcal, color:'rgba(255,255,255,0.6)' },
+    { key:'p',    label:'Protéines', unit:'g',    total:avgTotalP,    color:'#f97316' },
+    { key:'g',    label:'Glucides',  unit:'g',    total:avgTotalG,    color:'#38bdf8' },
+    { key:'l',    label:'Lipides',   unit:'g',    total:avgTotalL,    color:'#a78bfa' },
+    { key:'f',    label:'Fibres',    unit:'g',    total:avgTotalF,    color:'#4ade80' },
+  ].filter(function(m){ return m.total > 0; });
 
-  // Un dataset par repas — chaque dataset = 1 seule valeur (1 barre unique "Journée type")
-  const datasets = REPAS_ORDER
-    .filter(function(r){ return avgKcal[r] > 0; })
-    .map(function(r){
-      var meta = REPAS_META[r];
-      var col  = REPAS_COLORS[r];
-      return {
-        label: meta.icon+' '+meta.label,
-        data: [avgKcal[r]],
-        backgroundColor: col.fill,
-        borderColor: col.border,
-        borderWidth: 1,
-        borderRadius: 4,
-      };
-    });
+  // Détruire l'ancien chart si existe
+  if(charts['repasRepartition']){ charts['repasRepartition'].destroy(); delete charts['repasRepartition']; }
 
-  charts['repasRepartition'] = new Chart(ctx, {
-    type: 'bar',
-    data: { labels: ['Journée type'], datasets: datasets },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      maintainAspectRatio: false,
-      layout: { padding: { right: 10 } },
-      scales: {
-        x: {
-          stacked: true,
-          grid:   { color: 'rgba(255,255,255,0.05)' },
-          ticks:  { color: 'rgba(255,255,255,0.3)', font: { size: 11 }, callback: function(v){ return v+' kcal'; } },
-          border: { color: 'rgba(255,255,255,0.08)' },
-        },
-        y: {
-          stacked: true,
-          grid:   { display: false },
-          ticks:  { color: 'rgba(255,255,255,0.4)', font: { size: 12 } },
-          border: { display: false },
-        }
-      },
-      plugins: {
-        legend: {
-          display: true,
-          position: 'bottom',
-          labels: {
-            color: 'rgba(255,255,255,0.5)',
-            font: { size: 11 },
-            boxWidth: 12,
-            boxHeight: 12,
-            borderRadius: 3,
-            padding: 16,
-          }
-        },
-        tooltip: {
-          callbacks: {
-            label: function(ctx){
-              var kcal = ctx.parsed.x;
-              var pct  = avgTotal > 0 ? Math.round(kcal / avgTotal * 100) : 0;
-              return ' '+ctx.dataset.label+' : '+kcal.toLocaleString('fr-FR')+' kcal ('+pct+'%)';
-            },
-            footer: function(){
-              return 'Total : '+avgTotal.toLocaleString('fr-FR')+' kcal';
-            }
-          },
-          backgroundColor: 'rgba(10,10,20,0.95)',
-          borderColor: 'rgba(249,115,22,0.3)',
-          borderWidth: 1,
-          titleColor: 'rgba(255,255,255,0.6)',
-          bodyColor: 'rgba(255,255,255,0.85)',
-          footerColor: '#f97316',
-          padding: 10,
-        },
-        annotation: {
-          annotations: {
-            totalLine: {
-              type: 'line',
-              xMin: avgTotal,
-              xMax: avgTotal,
-              borderColor: 'rgba(255,255,255,0.2)',
-              borderWidth: 1,
-              borderDash: [4,3],
-              label: {
-                display: true,
-                content: avgTotal.toLocaleString('fr-FR')+' kcal',
-                position: 'start',
-                color: 'rgba(255,255,255,0.35)',
-                font: { size: 10 },
-                backgroundColor: 'transparent',
-                yAdjust: -14,
-              }
-            }
-          }
-        }
-      }
-    }
-  });
-
-  // ── Barres de macros par repas ──
+  // ── Rendu HTML natif (pas Chart.js) — barres horizontales empilées custom ──
+  // Plus flexible pour afficher labels + valeurs proprement
   const macrosEl = document.getElementById('repasRepartMacros');
+  const canvasEl = document.getElementById('chartRepasRepartition');
+  if(canvasEl) canvasEl.style.display = 'none'; // On n'utilise pas le canvas ici
   if(!macrosEl) return;
 
-  // Totaux macros toutes journées
-  var totP=0, totG=0, totL=0, totF=0;
-  REPAS_ORDER.forEach(function(r){ totP+=avgP[r]; totG+=avgG[r]; totL+=avgL[r]; totF+=avgF[r]; });
-  totP=Math.round(totP*10)/10; totG=Math.round(totG*10)/10;
-  totL=Math.round(totL*10)/10; totF=Math.round(totF*10)/10;
+  // Légende repas (en haut, une seule fois)
+  const repasPresents = REPAS_ORDER.filter(function(r){
+    return REPAS_ORDER.some(function(){ return avg[r].kcal > 0; }) && avg[r].kcal > 0;
+  });
 
-  if(totP===0 && totG===0 && totL===0 && totF===0){
-    macrosEl.innerHTML='';
-    return;
-  }
+  var legendHtml = '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px">'
+    + repasPresents.map(function(r){
+        var col = REPAS_COLORS[r];
+        var meta = REPAS_META[r];
+        return '<span style="display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(255,255,255,0.5)">'
+          +'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+col.fill+'"></span>'
+          +meta.icon+' '+meta.label+'</span>';
+      }).join('')
+    +'</div>';
 
-  function macroRow(label, color, key, total, unit){
+  var rowsHtml = metrics.map(function(m){
+    var total = m.total;
     if(total === 0) return '';
-    var repasPresents = REPAS_ORDER.filter(function(r){ return
-      key==='p'?avgP[r]>0:key==='g'?avgG[r]>0:key==='l'?avgL[r]>0:avgF[r]>0; });
-    if(!repasPresents.length) return '';
-    var segments = repasPresents.map(function(r){
-      var val = key==='p'?avgP[r]:key==='g'?avgG[r]:key==='l'?avgL[r]:avgF[r];
+
+    // Segments
+    var segs = repasPresents.map(function(r){
+      var val = avg[r][m.key];
+      if(!val) return '';
       var pct = total > 0 ? (val / total * 100) : 0;
       var col = REPAS_COLORS[r];
-      return '<div title="'+REPAS_META[r].label+' : '+val+unit+' ('+Math.round(pct)+'%)" '
-        +'style="height:100%;width:'+pct+'%;background:'+col.fill+';border-right:1px solid rgba(0,0,0,0.2);transition:width .4s;min-width:2px;box-sizing:border-box"></div>';
+      var repLabel = REPAS_META[r].label;
+      return '<div title="'+repLabel+' : '+val+m.unit+' ('+Math.round(pct)+'%)" '
+        +'style="height:100%;width:'+pct+'%;background:'+col.fill
+        +';border-right:1px solid rgba(0,0,0,0.15);box-sizing:border-box;min-width:2px;transition:width .4s">'
+        +'</div>';
     }).join('');
-    return '<div>'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'
-      +'<span style="font-size:11px;color:'+color+';font-weight:600">'+label+'</span>'
-      +'<span style="font-family:\'Space Mono\',monospace;font-size:11px;color:rgba(255,255,255,0.45)">'+total+unit+' moy.</span>'
-      +'</div>'
-      +'<div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:rgba(255,255,255,0.05)">'+segments+'</div>'
-      +'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:5px">'
-      +repasPresents.map(function(r){
-        var val = key==='p'?avgP[r]:key==='g'?avgG[r]:key==='l'?avgL[r]:avgF[r];
-        var pct = total > 0 ? Math.round(val/total*100) : 0;
-        var col = REPAS_COLORS[r];
-        return '<span style="font-size:10px;color:rgba(255,255,255,0.35)">'
-          +'<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+col.fill+';margin-right:3px;vertical-align:middle"></span>'
-          +REPAS_META[r].icon+' '+Math.round(val)+unit+' <span style="color:rgba(255,255,255,0.2)">('+pct+'%)</span></span>';
-      }).join('')
-      +'</div></div>';
-  }
 
-  macrosEl.innerHTML = [
-    macroRow('Protéines', '#f97316', 'p', totP, 'g'),
-    macroRow('Glucides',  '#38bdf8', 'g', totG, 'g'),
-    macroRow('Lipides',   '#a78bfa', 'l', totL, 'g'),
-    macroRow('Fibres',    '#4ade80', 'f', totF, 'g'),
-  ].filter(Boolean).join('');
+    // Détail valeurs par repas sous la barre
+    var detailHtml = '<div style="display:flex;gap:0;flex-wrap:wrap;margin-top:4px">'
+      + repasPresents.map(function(r){
+          var val = avg[r][m.key];
+          if(!val) return '';
+          var pct = total > 0 ? Math.round(val / total * 100) : 0;
+          var col = REPAS_COLORS[r];
+          return '<span style="font-size:10px;color:rgba(255,255,255,0.3);margin-right:12px;white-space:nowrap">'
+            +'<span style="display:inline-block;width:7px;height:7px;border-radius:1px;background:'+col.fill+';margin-right:3px;vertical-align:middle"></span>'
+            +REPAS_META[r].icon+' <span style="color:'+col.border+'">'+val+m.unit+'</span>'
+            +' <span style="color:rgba(255,255,255,0.18)">('+pct+'%)</span></span>';
+        }).join('')
+      +'</div>';
+
+    return '<div style="margin-bottom:16px">'
+      // Ligne label + total
+      +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">'
+      +'<span style="font-size:12px;font-weight:700;color:'+m.color+'">'+m.label+'</span>'
+      +'<span style="font-family:\'Space Mono\',monospace;font-size:11px;color:rgba(255,255,255,0.35)">'+total+' '+m.unit+' / jour (moy.)</span>'
+      +'</div>'
+      // Barre empilée
+      +'<div style="display:flex;height:18px;border-radius:9px;overflow:hidden;background:rgba(255,255,255,0.05)">'+segs+'</div>'
+      // Détail
+      +detailHtml
+      +'</div>';
+  }).join('');
+
+  macrosEl.innerHTML = legendHtml + rowsHtml;
 }
 
 function renderNutriCibles(){
