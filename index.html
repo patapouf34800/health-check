@@ -7228,32 +7228,25 @@ function renderNutriDetail(d){
         var grpL = Math.round(grpItems.reduce(function(s,it){ return it.l!=null?s+it.l:s; }, 0)*10)/10;
         var grpF = Math.round(grpItems.reduce(function(s,it){ return it.f!=null?s+it.f:s; }, 0)*10)/10;
         var hasAnyMacro = grpItems.some(function(it){ return it.p!=null||it.g!=null||it.l!=null||it.f!=null; });
+        var grpPct = d.calories > 0 ? Math.round(grpKcal / d.calories * 100) : 0;
+
+        var tdBase = 'padding:8px 8px 6px;background:rgba(255,255,255,0.03);border-top:1px solid rgba(255,255,255,0.08);border-bottom:1px solid rgba(255,255,255,0.06)';
 
         // Ligne séparateur repas (colspan 7)
         tbodyRows += '<tr>'
-          +'<td colspan="3" style="padding:8px 8px 5px;background:rgba(255,255,255,0.025);border-top:1px solid rgba(255,255,255,0.07);border-bottom:1px solid rgba(255,255,255,0.05)">'
-          +'<span style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1.5px">'+meta.icon+' '+meta.label+'</span>'
+          +'<td colspan="3" style="'+tdBase+'">'
+          +'<span style="font-size:11px;font-weight:800;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:1.5px">'+meta.icon+' '+meta.label+'</span>'
+          +'<span style="font-family:\'Space Mono\',monospace;font-size:11px;font-weight:700;color:rgba(249,115,22,0.85);margin-left:12px">'+grpKcal.toLocaleString('fr-FR')+' kcal</span>'
+          +'<span style="font-size:10px;color:rgba(255,255,255,0.25);margin-left:6px">('+grpPct+'%)</span>'
           +'</td>'
           +(hasAnyMacro
-            ? '<td style="padding:8px 8px 5px;text-align:right;background:rgba(255,255,255,0.025);border-top:1px solid rgba(255,255,255,0.07);border-bottom:1px solid rgba(255,255,255,0.05);font-family:\'Space Mono\',monospace;font-size:11px;color:#f97316">'+grpP+'g</td>'
-              +'<td style="padding:8px 8px 5px;text-align:right;background:rgba(255,255,255,0.025);border-top:1px solid rgba(255,255,255,0.07);border-bottom:1px solid rgba(255,255,255,0.05);font-family:\'Space Mono\',monospace;font-size:11px;color:#38bdf8">'+grpG+'g</td>'
-              +'<td style="padding:8px 8px 5px;text-align:right;background:rgba(255,255,255,0.025);border-top:1px solid rgba(255,255,255,0.07);border-bottom:1px solid rgba(255,255,255,0.05);font-family:\'Space Mono\',monospace;font-size:11px;color:#a78bfa">'+grpL+'g</td>'
-              +'<td style="padding:8px 8px 5px;text-align:right;background:rgba(255,255,255,0.025);border-top:1px solid rgba(255,255,255,0.07);border-bottom:1px solid rgba(255,255,255,0.05);font-family:\'Space Mono\',monospace;font-size:11px;color:#4ade80">'+grpF+'g</td>'
-            : '<td colspan="4" style="padding:8px 8px 5px;text-align:right;background:rgba(255,255,255,0.025);border-top:1px solid rgba(255,255,255,0.07);border-bottom:1px solid rgba(255,255,255,0.05);font-family:\'Space Mono\',monospace;font-size:12px;color:rgba(249,115,22,0.7)">'+grpKcal.toLocaleString('fr-FR')+' kcal</td>'
-          );
-
-        // Kcal du groupe dans la colonne Kcal si macros affichées
-        if(hasAnyMacro){
-          // On n'a pas de colonne dédiée → on l'affiche dans le label via colspan=3 ci-dessus
-          // → on l'ajoute à droite du label
-          tbodyRows = tbodyRows.replace(
-            meta.icon+' '+meta.label+'</span></td>',
-            meta.icon+' '+meta.label+'</span>'
-            +'<span style="font-family:\'Space Mono\',monospace;font-size:11px;color:rgba(249,115,22,0.7);margin-left:12px">'+grpKcal.toLocaleString('fr-FR')+' kcal</span>'
-            +'</td>'
-          );
-        }
-        tbodyRows += '</tr>';
+            ? '<td style="'+tdBase+';text-align:right;font-family:\'Space Mono\',monospace;font-size:11px;font-weight:700;color:#f97316">'+grpP+'g</td>'
+              +'<td style="'+tdBase+';text-align:right;font-family:\'Space Mono\',monospace;font-size:11px;font-weight:700;color:#38bdf8">'+grpG+'g</td>'
+              +'<td style="'+tdBase+';text-align:right;font-family:\'Space Mono\',monospace;font-size:11px;font-weight:700;color:#a78bfa">'+grpL+'g</td>'
+              +'<td style="'+tdBase+';text-align:right;font-family:\'Space Mono\',monospace;font-size:11px;font-weight:700;color:#4ade80">'+grpF+'g</td>'
+            : '<td colspan="4" style="'+tdBase+';text-align:right;font-family:\'Space Mono\',monospace;font-size:11px;font-weight:700;color:rgba(249,115,22,0.7)"></td>'
+          )
+          +'</tr>';
 
         tbodyRows += grpItems.map(makeRow).join('');
       });
