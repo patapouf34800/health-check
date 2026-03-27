@@ -458,9 +458,8 @@
         <div id="crosshairPoidsTooltip" style="position:absolute;top:10px;background:rgba(10,10,20,0.95);border:1px solid rgba(129,140,248,0.4);border-radius:8px;padding:8px 12px;pointer-events:none;display:none;white-space:nowrap;font-size:13px;z-index:10;font-family:sans-serif"></div>
       </div>
       <div class="legend" style="margin-top:14px">
-        <div class="legend-item"><div class="legend-line" style="background:#f97316"></div>Poids théorique</div>
-        <div class="legend-item"><div class="legend-line" style="background:#a78bfa;opacity:0.9"></div>Théo Hall (passé)</div>
-        <div class="legend-item"><div class="legend-line" style="background:#818cf8"></div>Réaliste (Hall futur)</div>
+        <div class="legend-item"><div class="legend-line" style="background:#f97316"></div>Poids théorique (simple)</div>
+        <div class="legend-item"><div class="legend-line" style="background:#a78bfa;opacity:0.9"></div>Hall (à partir de J+14)</div>
         <div class="legend-item"><div class="legend-line" style="background:#38bdf8"></div>Fourchette optimiste</div>
         <div class="legend-item"><div class="legend-line" style="background:#f43f5e"></div>Fourchette pessimiste</div>
         <div class="legend-item"><div class="legend-dot" style="background:#22c55e;border-radius:50%"></div>Pesées réelles</div>
@@ -1631,53 +1630,80 @@ function computeStats(){
   const ADAPT_KCAL_PER_KG = 20;  // -20 kcal/j par kg perdu
   const KCAL_FAT  = 9441;        // kcal/kg graisse
   const KCAL_LEAN = 1816;        // kcal/kg masse maigre
+  const WINDOW_DAYS = 14;        // Fenêtre glissante pour le déficit moyen
 
-  // Deficit de reference sur les 14 derniers jours réels (toujours sur days complet,
-  // pas sur filtered — sinon la projection dépend de la période affichée)
-  const recentDaysAll = days.slice(-14);
+  // Calcul unifié du Hall : historique (à partir de J+14) + futur
+  // Utilise une fenêtre glissante de 14 jours pour calculer le déficit de référence
+  const poidsHistoryHall = [];
+  let pHall = poidsInit;
+  
+  // Jours 0-13 : pas assez de données pour Hall, on met null
+  for(let i=0; i<Math.min(WINDOW_DAYS, days.length); i++){
+    poidsHistoryHall.push(null);
+  }
+  
+  // À partir du jour 14 : on peut calculer Hall avec fenêtre glissante
+  if(days.length >= WINDOW_DAYS){
+    // Position de départ = jour 14, on recalcule le poids à ce moment
+    // en appliquant le modèle simple jusqu'à J+13
+    let runningWeight = poidsInit;
+    for(let i=0; i<WINDOW_DAYS; i++){
+      runningWeight -= (days[i].objectif - days[i].calories) / KCAL_PER_KG;
+    }
+    pHall = runningWeight;
+    
+    // Pour chaque jour à partir de J+14
+    for(let i=WINDOW_DAYS; i<days.length; i++){
+      // Déficit moyen des 14 jours précédents (fenêtre glissante)
+      const window14 = days.slice(i-WINDOW_DAYS, i);
+      const deficitMoyen14j = window14.reduce((s,d)=>s+(d.objectif-d.calories),0) / WINDOW_DAYS;
+      
+      // Poids perdu depuis le début
+      const poidsPerdu = poidsInit - pHall;
+      const adaptMetab = poidsPerdu * ADAPT_KCAL_PER_KG;
+      const defJour = Math.max(0, deficitMoyen14j - adaptMetab);
+      
+      // Ratio Forbes : proportion de graisse perdue
+      const fatRatio = 1 / (1 + 0.12 * Math.exp(-0.015 * defJour));
+      const leanRatio = 1 - fatRatio;
+      const kcalPerKgLost = fatRatio * KCAL_FAT + leanRatio * KCAL_LEAN;
+      const dailyLoss = kcalPerKgLost > 0 ? defJour / kcalPerKgLost : 0;
+      
+      pHall = parseFloat((pHall - dailyLoss).toFixed(3));
+      poidsHistoryHall.push(parseFloat(pHall.toFixed(2)));
+    }
+  }
+  
+  // Projection future : continue avec la même logique (fenêtre = 14 derniers jours réels)
+  const projections=[], projOptimiste=[], projPessimiste=[];
+  
+  // Point de départ pour la projection
+  let pCurrent = days.length >= WINDOW_DAYS ? pHall : poidsActuel;
+  
+  // Déficit de référence = moyenne des 14 derniers jours réels
+  const recentDaysAll = days.slice(-Math.min(WINDOW_DAYS, days.length));
   const recentDeficit = recentDaysAll.length >= 3
     ? recentDaysAll.reduce((s,d)=>s+(d.objectif-d.calories),0)/recentDaysAll.length
     : avgDailyDeficit;
 
-  // Projection jour par jour (futur)
-  const projections=[], projOptimiste=[], projPessimiste=[];
-  let pCurrent = poidsActuel;
-
-  for(let i=1;i<=nbProj;i++){
-    const poidsPerdu = poidsActuel - pCurrent;
+  for(let i=1; i<=nbProj; i++){
+    const poidsPerdu = poidsInit - pCurrent;
     const adaptMetab = poidsPerdu * ADAPT_KCAL_PER_KG;
     const defJour = Math.max(0, recentDeficit - adaptMetab);
-    // Ratio Forbes simplifie : proportion de graisse perdue
+    
+    // Ratio Forbes
     const fatRatio = 1 / (1 + 0.12 * Math.exp(-0.015 * defJour));
     const leanRatio = 1 - fatRatio;
     const kcalPerKgLost = fatRatio * KCAL_FAT + leanRatio * KCAL_LEAN;
     const dailyLoss = kcalPerKgLost > 0 ? defJour / kcalPerKgLost : 0;
+    
     pCurrent = parseFloat((pCurrent - dailyLoss).toFixed(3));
     projections.push(parseFloat(pCurrent.toFixed(2)));
+    
     // Fourchette +/-: variation de 5-8% selon adherence
-    const spread = Math.abs(poidsActuel - pCurrent);
+    const spread = Math.abs((days.length >= WINDOW_DAYS ? pHall : poidsActuel) - pCurrent);
     projOptimiste.push(parseFloat((pCurrent - spread*0.06).toFixed(2)));
     projPessimiste.push(parseFloat((pCurrent + spread*0.10).toFixed(2)));
-  }
-
-  // Calcul de la projection Hall pour l'historique (passé)
-  const poidsHistoryHall = [];
-  let pHall = poidsInit;
-  poidsHistoryHall.push(parseFloat(pHall.toFixed(2)));
-  
-  for(let i=0; i<days.length-1; i++){
-    const d = days[i];
-    const deficitJour = d.objectif - d.calories;
-    const poidsPerduDepuisDebut = poidsInit - pHall;
-    const adaptMetab = poidsPerduDepuisDebut * ADAPT_KCAL_PER_KG;
-    const defJourAjuste = Math.max(0, deficitJour - adaptMetab);
-    // Ratio Forbes simplifie : proportion de graisse perdue
-    const fatRatio = 1 / (1 + 0.12 * Math.exp(-0.015 * Math.abs(defJourAjuste)));
-    const leanRatio = 1 - fatRatio;
-    const kcalPerKgLost = fatRatio * KCAL_FAT + leanRatio * KCAL_LEAN;
-    const dailyLoss = kcalPerKgLost > 0 ? defJourAjuste / kcalPerKgLost : 0;
-    pHall = parseFloat((pHall - dailyLoss).toFixed(3));
-    poidsHistoryHall.push(parseFloat(pHall.toFixed(2)));
   }
 
   // Poids d'equilibre : quand l'adaptation annule completement le deficit
@@ -2697,9 +2723,8 @@ function renderChartPoids(s){
   const nullHist=Array(histL.length).fill(null);
   charts['poids']=new Chart(ctx,{type:'line',data:{labels:allL,datasets:[
     {label:'Poids théorique',data:[...s.poidsHistory,...Array(s.projections.length).fill(null)],borderColor:'#f97316',backgroundColor:'rgba(249,115,22,0.1)',fill:true,tension:0.4,pointRadius:0,borderWidth:2,spanGaps:false},
-    {label:'Théorique Hall (passé)',data:[...s.poidsHistoryHall,...Array(s.projections.length).fill(null)],borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,0.08)',fill:false,tension:0.4,pointRadius:0,borderWidth:2,borderDash:[6,3],spanGaps:false},
+    {label:'Hall (continu)',data:[...s.poidsHistoryHall,...s.projections],borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,0.08)',fill:false,tension:0.4,pointRadius:0,borderWidth:2,borderDash:[6,3],spanGaps:true},
     {label:'Optimiste',data:[...nullHist,...s.projOptimiste],borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,0.07)',fill:'+1',tension:0.4,pointRadius:0,borderWidth:1.5,borderDash:[4,3],spanGaps:false},
-    {label:'Réaliste (Hall)',data:[...nullHist,...s.projections],borderColor:'#818cf8',backgroundColor:'rgba(129,140,248,0.08)',fill:true,tension:0.4,pointRadius:0,borderWidth:2,borderDash:[6,3],spanGaps:false},
     {label:'Pessimiste',data:[...nullHist,...s.projPessimiste],borderColor:'#f43f5e',backgroundColor:'rgba(244,63,94,0.05)',fill:'-1',tension:0.4,pointRadius:0,borderWidth:1.5,borderDash:[4,3],spanGaps:false},
     {label:'Pesée réelle',data:peseeData,borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,0.15)',fill:false,tension:0.3,pointRadius:6,pointHoverRadius:8,pointBackgroundColor:'#22c55e',pointBorderColor:'#050508',pointBorderWidth:2,borderWidth:2,spanGaps:false,showLine:true},
     {label:'Théorique+sport',data:[...s.poidsHistoryVelo,...Array(s.projections.length).fill(null)],borderColor:'rgba(56,189,248,0.45)',backgroundColor:'transparent',fill:false,tension:0.4,pointRadius:0,borderWidth:1,borderDash:[2,4],spanGaps:false}
@@ -2742,6 +2767,8 @@ function renderChartPoids(s){
         html+='<div style="color:#f97316">Theorique : <strong>'+theorique.toFixed(2)+' kg</strong></div>';
         if(theoriqueHall!=null){
           html+='<div style="color:#a78bfa;font-size:12px">Théo Hall : '+theoriqueHall.toFixed(2)+' kg</div>';
+        } else if(idx < 14){
+          html+='<div style="color:rgba(167,139,250,0.4);font-size:11px;font-style:italic">Hall : données insuffisantes (J<14)</div>';
         }
       }
     }
