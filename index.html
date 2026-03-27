@@ -8670,6 +8670,35 @@ async function initApp() {
     var btn      = document.getElementById('voiceBtn');
     var statusEl = document.getElementById('voiceStatus');
 
+    // Sur Chrome Android en mode PWA installée, la permission micro doit être
+    // demandée explicitement via getUserMedia avant SpeechRecognition.
+    // On demande, on libère le stream immédiatement, puis on lance la reco.
+    if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+      if(statusEl){ statusEl.textContent = '🎤 Demande d\'accès au micro…'; statusEl.style.display = 'block'; }
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(function(stream){
+          // Permission accordée — libérer le stream, on n'en a pas besoin
+          stream.getTracks().forEach(function(t){ t.stop(); });
+          _doStartListening(btn, statusEl);
+        })
+        .catch(function(err){
+          var msg = '🎤 ';
+          if(err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'){
+            msg += 'Microphone refusé — allez dans Réglages Android → Apps → autorisations.';
+          } else {
+            msg += 'Micro inaccessible : ' + err.name;
+          }
+          if(statusEl){ statusEl.textContent = msg; statusEl.style.display = 'block'; }
+          setTimeout(function(){ if(statusEl) statusEl.style.display='none'; }, 5000);
+          resetBtn();
+        });
+    } else {
+      // getUserMedia non disponible (contexte non-HTTPS ou très vieux navigateur)
+      _doStartListening(btn, statusEl);
+    }
+  }
+
+  function _doStartListening(btn, statusEl){
     _recognition = new SpeechRecognition();
     _recognition.lang = 'fr-FR';
     _recognition.continuous = false;
@@ -8691,7 +8720,6 @@ async function initApp() {
     };
 
     _recognition.onresult = function(e){
-      // Prendre la meilleure alternative
       var transcript = e.results[0][0].transcript;
       var result = parseVoice(transcript);
       applyVoiceResult(result, transcript);
