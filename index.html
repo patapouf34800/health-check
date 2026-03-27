@@ -544,11 +544,18 @@
       <div class="form-row" style="align-items:flex-start">
         <div class="form-group" style="position:relative;flex:1">
           <label>Rechercher un aliment</label>
-          <input type="text" id="calcSearch" placeholder="Ex: poulet, riz, oeuf…" autocomplete="off"
-            oninput="searchCiqual(this.value)"
-            onkeydown="calcSearchKeydown(event)"
-            style="width:100%">
-          <div id="calcSuggestions" style="display:none;position:absolute;z-index:100;left:0;right:0;top:100%;background:#13131a;border:1px solid rgba(249,115,22,0.3);border-radius:0 0 8px 8px;max-height:240px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5)"></div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <div style="position:relative;flex:1">
+              <input type="text" id="calcSearch" placeholder="Ex: poulet, riz, oeuf…" autocomplete="off"
+                oninput="searchCiqual(this.value)"
+                onkeydown="calcSearchKeydown(event)"
+                style="width:100%">
+              <div id="calcSuggestions" style="display:none;position:absolute;z-index:100;left:0;right:0;top:100%;background:#13131a;border:1px solid rgba(249,115,22,0.3);border-radius:0 0 8px 8px;max-height:240px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5)"></div>
+            </div>
+            <button id="voiceBtn" onclick="toggleVoiceInput()" title="Saisie vocale"
+              style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.45);border-radius:8px;padding:8px 11px;cursor:pointer;font-size:18px;line-height:1;transition:all .2s;flex-shrink:0;margin-top:0">🎤</button>
+          </div>
+          <div id="voiceStatus" style="display:none;margin-top:6px;font-size:11px;font-family:'Space Mono',monospace;color:#f97316;letter-spacing:0.5px"></div>
           <div id="calcSelected" style="margin-top:6px;font-size:12px;color:rgba(249,115,22,0.8);min-height:18px"></div>
         </div>
         <div class="form-group" style="max-width:150px">
@@ -560,6 +567,7 @@
       </div>
       <p style="font-size:12px;color:rgba(255,255,255,0.25);margin-top:10px">
         💡 Recherche dans <strong style="color:rgba(255,255,255,0.4)">1 356 aliments Ciqual</strong> + vos références perso. Tapez au moins 2 lettres.
+        <span id="voiceHint" style="display:none"> · <strong style="color:rgba(255,255,255,0.35)">🎤</strong> Dites ex : <em>"150 grammes de poulet"</em></span>
       </p>
       <select id="calcSelect" style="display:none"></select>
 
@@ -8509,6 +8517,235 @@ async function initApp() {
   window.addEventListener('beforeunload', () => { window._masterKey = null; });
   const _vd=document.getElementById('veloDate'); if(_vd) _vd.value=new Date().toISOString().split('T')[0];
 }
+
+// ── SAISIE VOCALE ────────────────────────────────────────────────────────────
+// Web Speech API — fonctionne sur Chrome/Safari mobile, Edge
+// Zéro dépendance, zéro serveur, zéro impact sur le reste de l'appli
+(function(){
+
+  var _recognition = null;
+  var _listening   = false;
+
+  // Vérifie le support navigateur (silencieux si non supporté)
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  // Afficher/masquer le bouton selon le support
+  function initVoiceUI(){
+    var btn  = document.getElementById('voiceBtn');
+    var hint = document.getElementById('voiceHint');
+    if(!btn) return;
+    if(!SpeechRecognition){
+      btn.style.display = 'none'; // navigateur non compatible → bouton invisible
+      return;
+    }
+    btn.style.display = '';
+    if(hint) hint.style.display = 'inline';
+  }
+
+  // ── Parseur français aliment + grammage ──────────────────────────────────
+  // Gère : "150g de poulet", "cent grammes de riz basmati",
+  //        "du saumon 200 grammes", "une pomme", "filet de cabillaud 120g"
+  var MOTS_NOMBRES = {
+    'un':1,'une':1,'deux':2,'trois':3,'quatre':4,'cinq':5,'six':6,'sept':7,
+    'huit':8,'neuf':9,'dix':10,'quinze':15,'vingt':20,'trente':30,'quarante':40,
+    'cinquante':50,'soixante':60,'cent':100,'deux cents':200,'deux cent':200,
+    'cent cinquante':150,'cent vingt':120,'deux cent cinquante':250,
+    'trois cents':300,'trois cent':300
+  };
+
+  function motVersNombre(str){
+    str = str.trim().toLowerCase();
+    if(MOTS_NOMBRES[str] !== undefined) return MOTS_NOMBRES[str];
+    var n = parseFloat(str.replace(',','.'));
+    return isNaN(n) ? null : n;
+  }
+
+  function parseVoice(texte){
+    texte = texte.toLowerCase().trim();
+
+    // Patterns numériques (chiffres) : "150g de X", "150 g de X", "150 grammes de X"
+    var patterns = [
+      // "150g de poulet" / "150 grammes de riz basmati"
+      /(\d+(?:[,.]\d+)?)\s*(?:g|grammes?|gr)\s+(?:de\s+|d'|du\s+|des?\s+)?(.+)/,
+      // "poulet 150g" / "du saumon 200 grammes"
+      /(?:de\s+|d'|du\s+|des?\s+|un\s+|une\s+)?(.+?)\s+(\d+(?:[,.]\d+)?)\s*(?:g|grammes?|gr)/,
+      // "150 de X" (sans unité explicite mais contexte alimentaire)
+      /(\d+(?:[,.]\d+)?)\s+(?:de\s+|d'|du\s+|des?\s+)(.+)/,
+    ];
+
+    for(var i = 0; i < patterns.length; i++){
+      var m = texte.match(patterns[i]);
+      if(m){
+        var grammage, aliment;
+        if(i === 1){ // ordre inversé : aliment en premier
+          aliment  = m[1];
+          grammage = parseFloat(m[2].replace(',','.'));
+        } else {
+          grammage = parseFloat(m[1].replace(',','.'));
+          aliment  = m[2];
+        }
+        aliment = nettoyerAliment(aliment);
+        if(aliment && grammage > 0){
+          return { aliment: aliment, grammage: Math.round(grammage) };
+        }
+      }
+    }
+
+    // Patterns textuels (mots-nombres) : "cent grammes de riz"
+    var motNombreRe = /^(cent(?:\s+\w+)?|deux\s*cent(?:s|\s+\w+)?|trois\s*cent(?:s)?|cinquante|quarante|trente|vingt|quinze|dix|neuf|huit|sept|six|cinq|quatre|trois|deux|une?)\s+(?:grammes?|gr|g)\s+(?:de\s+|d'|du\s+|des?\s+)?(.+)/;
+    var m2 = texte.match(motNombreRe);
+    if(m2){
+      var g = motVersNombre(m2[1]);
+      var al = nettoyerAliment(m2[2]);
+      if(g && al) return { aliment: al, grammage: g };
+    }
+
+    // Fallback : juste un aliment sans grammage (après suppression des articles)
+    var fallback = nettoyerAliment(texte);
+    if(fallback && fallback.length >= 2){
+      return { aliment: fallback, grammage: null };
+    }
+
+    return null;
+  }
+
+  function nettoyerAliment(str){
+    return str
+      .replace(/^(de\s+|d'|du\s+|des?\s+|un\s+|une\s+|le\s+|la\s+|les?\s+|au\s+|aux\s+)/i,'')
+      .replace(/\s+(?:\d+\s*(?:g|grammes?|gr))$/,'')
+      .trim();
+  }
+
+  // ── Appliquer le résultat du parsing dans l'UI ────────────────────────────
+  function applyVoiceResult(result, texteOriginal){
+    var searchEl = document.getElementById('calcSearch');
+    var gramsEl  = document.getElementById('calcGrams');
+    var statusEl = document.getElementById('voiceStatus');
+    if(!searchEl) return;
+
+    if(result && result.aliment){
+      searchEl.value = result.aliment;
+      if(result.grammage && gramsEl){
+        gramsEl.value = result.grammage;
+      }
+      // Déclencher la recherche Ciqual exactement comme une frappe manuelle
+      searchCiqual(result.aliment);
+      searchEl.focus();
+
+      if(statusEl){
+        var msg = '🎤 « ' + result.aliment + ' »';
+        if(result.grammage) msg += ' — ' + result.grammage + ' g';
+        else msg += ' — grammage à préciser';
+        statusEl.textContent = msg;
+        statusEl.style.display = 'block';
+      }
+    } else {
+      // Fallback : texte brut dans le champ
+      searchEl.value = texteOriginal;
+      searchCiqual(texteOriginal);
+      searchEl.focus();
+      if(statusEl){
+        statusEl.textContent = '🎤 ' + texteOriginal + ' (non parsé — vérifiez)';
+        statusEl.style.display = 'block';
+      }
+    }
+
+    // Masquer le statut après 4s
+    setTimeout(function(){
+      if(statusEl) statusEl.style.display = 'none';
+    }, 4000);
+  }
+
+  // ── Toggle écoute ─────────────────────────────────────────────────────────
+  window.toggleVoiceInput = function(){
+    if(!SpeechRecognition) return;
+    if(_listening){
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
+
+  function startListening(){
+    var btn      = document.getElementById('voiceBtn');
+    var statusEl = document.getElementById('voiceStatus');
+
+    _recognition = new SpeechRecognition();
+    _recognition.lang = 'fr-FR';
+    _recognition.continuous = false;
+    _recognition.interimResults = false;
+    _recognition.maxAlternatives = 3;
+
+    _recognition.onstart = function(){
+      _listening = true;
+      if(btn){
+        btn.style.background = 'rgba(249,115,22,0.2)';
+        btn.style.borderColor = '#f97316';
+        btn.style.color = '#f97316';
+        btn.textContent = '⏹';
+      }
+      if(statusEl){
+        statusEl.textContent = '🎤 Écoute en cours…';
+        statusEl.style.display = 'block';
+      }
+    };
+
+    _recognition.onresult = function(e){
+      // Prendre la meilleure alternative
+      var transcript = e.results[0][0].transcript;
+      var result = parseVoice(transcript);
+      applyVoiceResult(result, transcript);
+    };
+
+    _recognition.onerror = function(e){
+      var statusEl = document.getElementById('voiceStatus');
+      var msg = '🎤 ';
+      if(e.error === 'not-allowed')  msg += 'Microphone refusé — autorisez l\'accès dans les réglages.';
+      else if(e.error === 'no-speech') msg += 'Rien détecté — réessayez.';
+      else msg += 'Erreur : ' + e.error;
+      if(statusEl){ statusEl.textContent = msg; statusEl.style.display = 'block'; }
+      setTimeout(function(){ if(statusEl) statusEl.style.display='none'; }, 4000);
+      resetBtn();
+    };
+
+    _recognition.onend = function(){
+      _listening = false;
+      resetBtn();
+    };
+
+    try {
+      _recognition.start();
+    } catch(err){
+      console.warn('[Voice]', err);
+      resetBtn();
+    }
+  }
+
+  function stopListening(){
+    if(_recognition){ try{ _recognition.stop(); } catch(e){} }
+    _listening = false;
+    resetBtn();
+  }
+
+  function resetBtn(){
+    _listening = false;
+    var btn = document.getElementById('voiceBtn');
+    if(btn){
+      btn.style.background = '';
+      btn.style.borderColor = '';
+      btn.style.color = '';
+      btn.textContent = '🎤';
+    }
+  }
+
+  // Initialiser l'UI au chargement
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', initVoiceUI);
+  } else {
+    initVoiceUI();
+  }
+
+})();
 
 initApp();
 
