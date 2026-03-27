@@ -1591,11 +1591,17 @@ function computeStats(){
   const filtered=getFilteredDays();
   const deficits=filtered.map(d=>({...d,deficit:d.objectif-d.calories}));
   const totalDeficit=deficits.reduce((s,d)=>s+d.deficit,0);
-  const pertePoids=totalDeficit/KCAL_PER_KG;
-  const poidsActuel=poidsInit-pertePoids;
   const moyenneCalories=filtered.reduce((s,d)=>s+d.calories,0)/(filtered.length||1);
   const joursDeficit=deficits.filter(d=>d.deficit>0).length;
   const avgDailyDeficit=totalDeficit/(filtered.length||1);
+
+  // poidsActuel et pertePoids TOUJOURS calculés sur l'historique complet (days),
+  // indépendamment du filtre de période — sinon le KPI "Poids théorique" et les
+  // projections Hall changent selon la période sélectionnée, ce qui est incorrect.
+  const totalDeficitComplet=days.reduce((s,d)=>s+(d.objectif-d.calories),0);
+  const pertePoids=totalDeficitComplet/KCAL_PER_KG;
+  const poidsActuel=poidsInit-pertePoids;
+
   // poidsHistory couvre TOUS les jours (pas filtered) pour que les index
   // du graphique correspondent aux labels, et pour servir de référence unique
   let running=poidsInit;
@@ -1625,10 +1631,11 @@ function computeStats(){
   const KCAL_FAT  = 9441;        // kcal/kg graisse
   const KCAL_LEAN = 1816;        // kcal/kg masse maigre
 
-  // Deficit de reference sur les 14 derniers jours (plus representatif)
-  const recentDays = filtered.slice(-14);
-  const recentDeficit = recentDays.length >= 3
-    ? recentDays.reduce((s,d)=>s+(d.objectif-d.calories),0)/recentDays.length
+  // Deficit de reference sur les 14 derniers jours réels (toujours sur days complet,
+  // pas sur filtered — sinon la projection dépend de la période affichée)
+  const recentDaysAll = days.slice(-14);
+  const recentDeficit = recentDaysAll.length >= 3
+    ? recentDaysAll.reduce((s,d)=>s+(d.objectif-d.calories),0)/recentDaysAll.length
     : avgDailyDeficit;
 
   // Projection jour par jour
@@ -2421,7 +2428,9 @@ function importData(event){
       if(!data.days) { alert('Fichier invalide : format non reconnu.'); return; }
       if(!confirm('Remplacer toutes les données actuelles par celles du fichier ?')) return;
       days = data.days;
+      days.sort((a,b)=>a.date.localeCompare(b.date)); // garantir l'ordre chronologique
       pesees = data.pesees || [];
+      pesees.sort((a,b)=>a.date.localeCompare(b.date)); // getPoidsAvantDate suppose un tri
       veloSessions = data.veloSessions || [];
       bilans = data.bilans || [];
       tensions = data.tensions || [];
@@ -5637,11 +5646,11 @@ function importBilan(event){
     try {
       const data = JSON.parse(e.target.result);
       if(!data.bilans || !Array.isArray(data.bilans)){ alert('Fichier invalide : structure bilans[] attendue.'); return; }
-      let added = 0, skipped = 0;
+      let added = 0, updated = 0, skipped = 0;
       data.bilans.forEach(b => {
         if(!b.id || !b.date){ skipped++; return; }
         const exists = bilans.findIndex(x => x.id === b.id);
-        if(exists >= 0){ bilans[exists] = b; skipped++; }
+        if(exists >= 0){ bilans[exists] = b; updated++; }
         else { bilans.push(b); added++; }
       });
       // Conserver les unités de référence si présentes
@@ -5656,7 +5665,7 @@ function importBilan(event){
       });
       bilans.sort((a,b) => a.date.localeCompare(b.date));
       renderBilans(); renderAllSanteSections(); saveData();
-      alert(added + ' bilan(s) importé(s)' + (skipped ? ', ' + skipped + ' mis à jour/ignorés.' : '.'));
+      alert(added + ' bilan(s) importé(s)' + (updated ? ', ' + updated + ' mis à jour' : '') + (skipped ? ', ' + skipped + ' ignoré(s) (id ou date manquants).' : '.'));
     } catch(err){ alert('Erreur de lecture du fichier JSON.'); }
   };
   reader.readAsText(file);
@@ -6265,7 +6274,11 @@ function computeBlocSnapshot(bloc){
   const c = getNutriCibles();
   const n = bloc.length;
   if(n === 0) return null;
-  function avg(key){ return n === 0 ? null : parseFloat((bloc.reduce(function(s,d){ return s+(d[key]||0);},0)/n).toFixed(1)); }
+  function avg(key){
+    const daysWithKey = bloc.filter(function(d){ return d[key] != null; });
+    if(daysWithKey.length === 0) return null;
+    return parseFloat((daysWithKey.reduce(function(s,d){ return s + d[key]; }, 0) / daysWithKey.length).toFixed(1));
+  }
   function avgCible(key){ return parseFloat((bloc.reduce(function(s,d){ return s+((d.cibles||c)[key]||0);},0)/n).toFixed(1)); }
   const avgKcal = parseFloat((bloc.reduce(function(s,d){ return s+(d.calories||0);},0)/n).toFixed(0));
   const avgObj  = parseFloat((bloc.reduce(function(s,d){ return s+(d.objectif||c.kcal||0);},0)/n).toFixed(0));
@@ -6428,8 +6441,14 @@ function renderBilanHebdo(){
   const badge = document.getElementById('bilanHebdoDimanche');
   badge.style.display = (isComplete && n >= 5) ? 'block' : 'none';
 
-  // Moyennes (uniquement sur jours avec données)
-  function avg(key){ return n === 0 ? null : parseFloat((withData.reduce(function(s,d){ return s + (d.data[key] || 0); }, 0) / n).toFixed(1)); }
+  // Moyennes (uniquement sur jours avec la donnée renseignée — on exclut les nulls
+  // du diviseur pour ne pas sous-estimer les macros des jours où elles sont saisies)
+  function avg(key){
+    if(n === 0) return null;
+    const daysWithKey = withData.filter(function(d){ return d.data[key] != null; });
+    if(daysWithKey.length === 0) return null;
+    return parseFloat((daysWithKey.reduce(function(s,d){ return s + d.data[key]; }, 0) / daysWithKey.length).toFixed(1));
+  }
   const avgP = avg('p'), avgG = avg('g'), avgL = avg('l'), avgF = avg('f');
 
   // Cibles de référence = moyenne des cibles snapshotées de chaque jour renseigné
