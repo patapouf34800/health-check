@@ -1463,10 +1463,6 @@
           <label>Nom du sport <span style="color:rgba(255,255,255,0.3);font-size:9px">(si personnalisé)</span></label>
           <input type="text" id="veloCustomText" placeholder="ex: Yoga, Tennis..." maxlength="30" style="width:100%">
         </div>
-        <div class="form-group" style="max-width:100px" id="veloCustomEmojiGroup">
-          <label>Émoticône</label>
-          <input type="text" id="veloCustomEmoji" placeholder="🎾" maxlength="10" style="width:100%;text-align:center;font-size:20px">
-        </div>
         <div class="form-group" style="max-width:100px" id="veloDistGroup">
           <label>Distance (km)</label>
           <input type="number" id="veloDistance" placeholder="7.5" step="0.1" min="0">
@@ -1583,7 +1579,7 @@ function getSessionDisplay(session){
   const act = getActivite(session.type || 'velo_interieur');
   if(session.customText){
     return {
-      icon: session.customEmoji || '⚡',
+      icon: '⚡',
       label: session.customText
     };
   }
@@ -2537,7 +2533,13 @@ function renderKPI(s){
   // Grouper les sessions par type
   const sportGroups = {};
   veloFiltered.forEach(function(v){
-    const type = v.type || 'custom';
+    let type = v.type;
+    // Si pas de type ou type vide, vérifier si c'est un ancien format ou un sport personnalisé
+    if(!type || type === '') {
+      // Si la session a un customText, c'est un sport personnalisé
+      // Sinon, c'est probablement une ancienne session de vélo intérieur
+      type = v.customText ? 'custom' : 'velo_interieur';
+    }
     if(!sportGroups[type]) sportGroups[type] = [];
     sportGroups[type].push(v);
   });
@@ -2545,33 +2547,29 @@ function renderKPI(s){
   // Créer les KPIs pour chaque groupe
   Object.entries(sportGroups).forEach(function([typeId, sessions]){
     const isCustom = typeId === 'custom' || typeId === '';
-    let displayIcon, displayLabel, hasDistForGroup;
+    let displayIcon, displayLabel;
     
     if(isCustom){
       // Pour les sports personnalisés, utiliser les infos de la première session
       const firstSession = sessions[0];
-      displayIcon = firstSession.customEmoji || '⚡';
+      displayIcon = '⚡';
       displayLabel = firstSession.customText || 'Sport personnalisé';
-      hasDistForGroup = sessions.some(v => v.distance && v.distance > 0);
     } else {
       // Activité prédéfinie
       const act = getActivite(typeId);
       displayIcon = act.icon;
       displayLabel = act.label;
-      hasDistForGroup = act.hasDist;
     }
     
-    if(hasDistForGroup){
-      const dist = sessions.reduce(function(s,v){ return s+(v.distance||0); }, 0);
-      if(dist > 0){
-        sportKpis.push({label:displayIcon+' '+displayLabel, value:dist.toFixed(1), unit:'km', color:'blue'});
-      } else {
-        const kcal = sessions.reduce(function(s,v){ return s+veloKcal(v); }, 0);
-        sportKpis.push({label:displayIcon+' '+displayLabel, value:Math.round(kcal).toLocaleString('fr-FR'), unit:'kcal', color:'blue'});
-      }
-    } else {
-      const kcal = sessions.reduce(function(s,v){ return s+veloKcal(v); }, 0);
-      sportKpis.push({label:displayIcon+' '+displayLabel, value:Math.round(kcal).toLocaleString('fr-FR'), unit:'kcal', color:'blue'});
+    // Calculer distance et calories
+    const totalDist = sessions.reduce(function(s,v){ return s+(v.distance||0); }, 0);
+    const totalKcal = sessions.reduce(function(s,v){ return s+veloKcal(v); }, 0);
+    
+    // Afficher distance si > 0, sinon calories
+    if(totalDist > 0){
+      sportKpis.push({label:displayIcon+' '+displayLabel, value:totalDist.toFixed(1), unit:'km', color:'blue'});
+    } else if(totalKcal > 0){
+      sportKpis.push({label:displayIcon+' '+displayLabel, value:Math.round(totalKcal).toLocaleString('fr-FR'), unit:'kcal', color:'blue'});
     }
   });
   
@@ -4194,7 +4192,6 @@ function updateVeloMET(){
   const distGroup = document.getElementById('veloDistGroup');
   const metGroup = document.getElementById('veloMetGroup');
   const customTextGroup = document.getElementById('veloCustomTextGroup');
-  const customEmojiGroup = document.getElementById('veloCustomEmojiGroup');
   const metInfo = document.getElementById('veloMetInfo');
   
   if(isCustom){
@@ -4202,7 +4199,6 @@ function updateVeloMET(){
     if(distGroup) distGroup.style.display = '';
     if(metGroup) metGroup.style.display = '';
     if(customTextGroup) customTextGroup.style.display = '';
-    if(customEmojiGroup) customEmojiGroup.style.display = '';
     if(metInfo) metInfo.textContent = '';
   } else {
     // Activité prédéfinie : utiliser ses paramètres
@@ -4210,7 +4206,6 @@ function updateVeloMET(){
     if(distGroup) distGroup.style.display = act.hasDist ? '' : 'none';
     if(metGroup) metGroup.style.display = 'none';
     if(customTextGroup) customTextGroup.style.display = 'none';
-    if(customEmojiGroup) customEmojiGroup.style.display = 'none';
     
     const poidsRef = pesees.length ? pesees[pesees.length-1].val : getPoids();
     if(metInfo) metInfo.textContent = 'MET '+act.met+' — ~'+Math.round(act.met * poidsRef)+' kcal/h pour '+poidsRef+' kg';
@@ -4233,18 +4228,15 @@ function addVelo(){
   
   const isCustom = !typeVal; // Pas d'activité prédéfinie
   let customText = null;
-  let customEmoji = null;
   let metCustom = null;
   let hasDist = false;
   
   if(isCustom){
     // Sport personnalisé
     const customTextEl = document.getElementById('veloCustomText');
-    const customEmojiEl = document.getElementById('veloCustomEmoji');
     const metCustomEl = document.getElementById('veloMetCustom');
     
     customText = customTextEl ? customTextEl.value.trim() : null;
-    customEmoji = customEmojiEl ? customEmojiEl.value.trim() : null;
     metCustom = metCustomEl ? parseFloat(metCustomEl.value) : null;
     
     if(!customText){
@@ -4283,7 +4275,7 @@ function addVelo(){
     type: typeVal || 'custom',
     metCustom,
     customText,
-    customEmoji
+    customEmoji: null
   });
   veloSessions.sort((a,b)=>a.date.localeCompare(b.date));
   
@@ -4292,7 +4284,6 @@ function addVelo(){
   document.getElementById('veloDuree').value='';
   if(isCustom){
     document.getElementById('veloCustomText').value='';
-    document.getElementById('veloCustomEmoji').value='';
     document.getElementById('veloMetCustom').value='';
   }
   
@@ -6198,7 +6189,13 @@ function renderVelo(){
   // Grouper par type d'activité
   const groups = {};
   filtered.forEach(v=>{
-    const type = v.type || 'velo_interieur';
+    let type = v.type;
+    // Si pas de type ou type vide, vérifier si c'est un ancien format ou un sport personnalisé
+    if(!type || type === ''){
+      // Si la session a un customText, c'est un sport personnalisé
+      // Sinon, c'est probablement une ancienne session de vélo intérieur
+      type = v.customText ? 'custom' : 'velo_interieur';
+    }
     if(!groups[type]) groups[type] = [];
     groups[type].push(v);
   });
@@ -6213,7 +6210,7 @@ function renderVelo(){
     if(isCustom){
       // Utiliser les infos de la première session pour le titre du groupe
       const firstSession = sessions[0];
-      displayIcon = firstSession.customEmoji || '⚡';
+      displayIcon = '⚡';
       displayLabel = firstSession.customText || 'Sport personnalisé';
       // Pour les sports personnalisés, vérifier s'il y a des distances
       hasDist = sessions.some(v => v.distance && v.distance > 0);
