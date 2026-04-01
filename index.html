@@ -7615,9 +7615,9 @@ function renderNutriCibles(){
     ? '<div style="display:inline-block;background:rgba(249,115,22,0.15);border:1px solid rgba(249,115,22,0.3);border-radius:6px;padding:4px 10px;font-size:10px;color:#f97316;font-weight:600;letter-spacing:0.5px;margin-left:8px">MODE : DÉFICIT</div>'
     : '<div style="display:inline-block;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);border-radius:6px;padding:4px 10px;font-size:10px;color:#38bdf8;font-weight:600;letter-spacing:0.5px;margin-left:8px">MODE : MAINTIEN</div>';
   
-  // Mise à jour du titre avec badge
+  // Mise à jour du titre avec badge (toujours mettre à jour pour refléter les changements)
   const titleEl = document.querySelector('#nutriCiblesCard .chart-title');
-  if(titleEl && !titleEl.innerHTML.includes('MODE :')) {
+  if(titleEl) {
     titleEl.innerHTML = '🎯 Cibles journalières ' + modeBadge;
   }
   
