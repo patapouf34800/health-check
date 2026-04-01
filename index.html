@@ -4198,6 +4198,8 @@ function initVeloForm(){
     ACTIVITES.map(a =>
       '<option value="'+a.id+'">'+a.icon+' '+a.label+'</option>'
     ).join('');
+  // Définir "Vélo intérieur" comme choix par défaut
+  sel.value = 'velo_interieur';
   updateVeloMET();
 }
 
