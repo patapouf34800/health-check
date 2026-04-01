@@ -7901,8 +7901,8 @@ function renderNutriDetail(d){
 
   document.getElementById('nutriDayDetail').innerHTML =
     '<div class="chart-title">'+d.label+' — Composition</div>'
-    +'<div class="kpi-grid" style="margin-bottom:16px">'+protCard+glucCard+lipCard+fibCard+'</div>'
-    +'<p style="font-size:11px;color:rgba(255,255,255,0.25)">Répartition : '+pctOfTotal(d.p)+'% prot · '+pctOfTotal(d.g)+'% gluc · '+pctOfTotal(d.l)+'% lip · Calories : '+d.calories.toLocaleString('fr-FR')+' kcal</p>'
+    +'<div class="kpi-grid" style="margin-bottom:16px">'+protCard+lipCard+fibCard+glucCard+'</div>'
+    +'<p style="font-size:11px;color:rgba(255,255,255,0.25)">Répartition : '+pctOfTotal(d.p)+'% prot · '+pctOfTotal(d.l)+'% lip · '+pctOfTotal(d.f)+'% fibres · '+pctOfTotal(d.g)+'% gluc · Calories : '+d.calories.toLocaleString('fr-FR')+' kcal</p>'
     + itemsHtml;
 }
 
