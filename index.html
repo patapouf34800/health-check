@@ -312,6 +312,7 @@
     <button class="sidebar-tab" onclick="showTab('references',this)">📚 Références</button>
     <button class="sidebar-tab" onclick="showTab('recettes',this)">🍲 Recettes</button>
     <button class="sidebar-tab" onclick="showTab('ciqual_explorer',this)">🔬 Données macro</button>
+    <button class="sidebar-tab" onclick="showTab('historique_bilans',this)">📜 Historique</button>
   </div>
 
   <div class="sidebar-section">
@@ -1390,11 +1391,21 @@
     </div>
   </div>
 
+  <!-- HISTORIQUE BILANS HEBDO -->
+  <div id="historique_bilans" class="panel">
+    <div class="chart-card">
+      <div class="chart-title" style="margin-bottom:16px">📜 Historique des bilans hebdomadaires</div>
+      <p style="font-size:12px;color:rgba(255,255,255,0.35);margin-bottom:20px">
+        Retrouvez tous les bilans hebdomadaires passés avec leurs moyennes de macronutriments et leur conformité aux cibles.
+      </p>
+    </div>
+    
+    <!-- Historique des semaines précédentes -->
+    <div id="bilanHebdoLastWeekSnap" style="display:none"></div>
+  </div>
+
   <!-- BILAN HEBDO -->
   <div id="bilan_hebdo" class="panel">
-
-    <!-- Snapshot semaine précédente -->
-    <div id="bilanHebdoLastWeekSnap" style="display:none"></div>
 
     <!-- En-tête semaine -->
     <div class="chart-card">
@@ -6505,7 +6516,16 @@ function renderWeeklySnapshotHistory(){
   const container = document.getElementById('bilanHebdoLastWeekSnap');
   if(!container) return;
   const snaps = window._weeklySnapshots;
-  if(!snaps || snaps.length === 0){ container.style.display='none'; return; }
+  if(!snaps || snaps.length === 0){ 
+    container.style.display='block'; 
+    container.innerHTML = '<div class="chart-card">'
+      +'<div style="text-align:center;padding:40px 20px">'
+      +'<div style="font-size:48px;opacity:0.15;margin-bottom:16px">📜</div>'
+      +'<div style="font-size:13px;color:rgba(255,255,255,0.3);margin-bottom:8px">Aucun historique disponible</div>'
+      +'<div style="font-size:11px;color:rgba(255,255,255,0.2)">Les bilans hebdomadaires complétés apparaîtront ici automatiquement</div>'
+      +'</div></div>';
+    return; 
+  }
 
   function fmtDate(s){ const d=new Date(s+'T00:00:00'); return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short'}); }
 
@@ -6534,7 +6554,7 @@ function renderWeeklySnapshotHistory(){
       +'<div style="font-family:\'Space Mono\',monospace;font-size:11px;color:rgba(255,255,255,0.55)">'+label+'</div>'
       +'<div style="font-size:10px;color:rgba(255,255,255,0.25);margin-top:2px">'+snap.n+'/7 jours'+(snap.avgKcal?' · moy. '+snap.avgKcal+' kcal':'')+(defStr?' · <span style="color:'+defColor+'">'+defStr+'</span>':'')+'</div>'
       +'</div>'
-      +'<button class="period-btn" onclick="_bilanHebdoOffset='+(-idx-1)+';renderBilanHebdo()" style="font-size:10px;padding:4px 10px">Détail →</button>'
+      +'<button class="period-btn" onclick="_bilanHebdoOffset='+(-idx-1)+';showTab(\'bilan_hebdo\',document.querySelector(\'.sidebar-tab[onclick*=bilan_hebdo]\'));renderBilanHebdo()" style="font-size:10px;padding:4px 10px">Détail →</button>'
       +'</div>'
       +'<div style="display:flex;gap:20px;flex-wrap:wrap">'
       +macroChip(snap.avgP, snap.cProtMin, '#f97316', 'Protéines')
@@ -6547,14 +6567,13 @@ function renderWeeklySnapshotHistory(){
 
   container.style.display = 'block';
   container.innerHTML = '<div style="margin-bottom:6px">'
-    +'<div style="font-size:9px;color:rgba(255,255,255,0.2);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px">Historique des blocs passés</div>'
+    +'<div style="font-size:9px;color:rgba(255,255,255,0.2);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px">Semaines passées ('+snaps.length+')</div>'
     + snaps.map(function(s,i){ return snapCard(s,i); }).join('')
     +'</div>';
 }
 
 function renderBilanHebdo(){
   maybeSnapshotWeeks();
-  renderWeeklySnapshotHistory();
   const c = getNutriCibles();
   const today = new Date(); today.setHours(0,0,0,0);
 
@@ -7951,6 +7970,7 @@ function showTab(id,btn){
   }
   if(id==='nutriments') renderNutri();
   if(id==='bilan_hebdo') renderBilanHebdo();
+  if(id==='historique_bilans') renderWeeklySnapshotHistory();
   if(id==='ciqual_explorer') renderCiqualExplorer();
   if(id==='recettes') renderRecettes();
   if(id==='poids'){ const pd=document.getElementById('peseeDate'); if(!pd.value) pd.value=new Date().toISOString().split('T')[0]; }
