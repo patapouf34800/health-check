@@ -2829,7 +2829,7 @@ function renderChartPoids(s){
     {label:'Optimiste',data:[...nullHist,...s.projOptimiste],borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,0.07)',fill:'+1',tension:0.4,pointRadius:0,borderWidth:1.5,borderDash:[4,3],spanGaps:false},
     {label:'Réaliste (Hall)',data:[...nullHist,...s.projections],borderColor:'#818cf8',backgroundColor:'rgba(129,140,248,0.08)',fill:true,tension:0.4,pointRadius:0,borderWidth:2,borderDash:[6,3],spanGaps:false},
     {label:'Pessimiste',data:[...nullHist,...s.projPessimiste],borderColor:'#f43f5e',backgroundColor:'rgba(244,63,94,0.05)',fill:'-1',tension:0.4,pointRadius:0,borderWidth:1.5,borderDash:[4,3],spanGaps:false},
-    {label:'Pesée réelle',data:peseeData,borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,0.15)',fill:false,tension:0.3,pointRadius:6,pointHoverRadius:8,pointBackgroundColor:'#22c55e',pointBorderColor:'#050508',pointBorderWidth:2,borderWidth:2,spanGaps:false,showLine:true},
+    {label:'Pesée réelle',data:peseeData,borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,0.15)',fill:false,tension:0.3,pointRadius:6,pointHoverRadius:8,pointBackgroundColor:'#22c55e',pointBorderColor:'#050508',pointBorderWidth:2,borderWidth:0,spanGaps:false,showLine:false},
     {label:'Théorique+sport',data:[...s.poidsHistoryVelo,...Array(s.projections.length).fill(null)],borderColor:'rgba(56,189,248,0.45)',backgroundColor:'transparent',fill:false,tension:0.4,pointRadius:0,borderWidth:1,borderDash:[2,4],spanGaps:false}
   ]},options:opts});
   registerExpandableChart('chartPoids','poids','Évolution du poids');
