@@ -2806,40 +2806,34 @@ function renderChartPoids(s){
   const peseeDateMap={};
   pesees.forEach(p=>{ peseeDateMap[p.date]=p.val; });
 
-  // Helper : ajouter N jours à une date ISO
-  function addDays(isoDate, n){
-    const dt=new Date(isoDate+'T00:00:00');
-    dt.setDate(dt.getDate()+n);
-    return dt.toISOString().split('T')[0];
-  }
   function isoToLabel(isoDate){
     const [,m,d]=isoDate.split('-'); return d+'/'+m;
   }
+  // Génère toutes les dates ISO entre firstDate et lastDate via arithmétique UTC pure
+  function dateRange(firstDate, lastDate){
+    const result=[];
+    if(!firstDate||!lastDate) return result;
+    const toMs=iso=>Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10));
+    const fromMs=ms=>{const dt=new Date(ms);const yy=dt.getUTCFullYear();const mm=String(dt.getUTCMonth()+1).padStart(2,'0');const dd=String(dt.getUTCDate()).padStart(2,'0');return yy+'-'+mm+'-'+dd;};
+    const startMs=toMs(firstDate), endMs=toMs(lastDate);
+    if(isNaN(startMs)||isNaN(endMs)||endMs<startMs) return result;
+    const DAY=86400000, MAX=730;
+    for(let ms=startMs,n=0; ms<=endMs&&n<MAX; ms+=DAY,n++) result.push(fromMs(ms));
+    return result;
+  }
 
-  // Construire un ensemble de toutes les dates à afficher :
-  // 1) tous les jours calendaires entre le premier et le dernier day (comble les trous)
-  // 2) les dates de pesées hors de cette plage
+  // Construire l'ensemble de toutes les dates à afficher
   const allKnownDates=new Set(days.map(d=>d.date));
   pesees.forEach(p=>allKnownDates.add(p.date));
-
   const sortedKnown=[...allKnownDates].sort();
   const firstDate=sortedKnown[0];
   const lastDate=sortedKnown[sortedKnown.length-1];
 
   // Générer toutes les dates calendaires de firstDate à lastDate
-  const allHistDays=[];
-  let cur=firstDate;
-  while(cur<=lastDate){
-    const [y,m,d]=cur.split('-');
-    const lbl=d+'/'+m;
-    const dayEntry=days.find(dy=>dy.date===cur);
-    if(dayEntry){
-      allHistDays.push({...dayEntry, _gap:false});
-    } else {
-      allHistDays.push({date:cur, label:lbl, _gap:true});
-    }
-    cur=addDays(cur,1);
-  }
+  const allHistDays=dateRange(firstDate,lastDate).map(date=>{
+    const dayEntry=days.find(dy=>dy.date===date);
+    return dayEntry ? {...dayEntry,_gap:false} : {date,label:isoToLabel(date),_gap:true};
+  });
 
   const histL=allHistDays.map(d=>d.label);
   const projL=Array.from({length:s.projections.length},(_,i)=>'J+'+(i+1));
