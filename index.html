@@ -2802,37 +2802,21 @@ function renderChartPoids(s){
   const crosshair=document.getElementById('crosshairPoids');
   const tooltip=document.getElementById('crosshairPoidsTooltip');
 
-  // Pesées réelles alignées par date réelle
+  // Axe X = days (données caloriques) + pesées orphelines (sans entrée calorique), triés
   const peseeDateMap={};
   pesees.forEach(p=>{ peseeDateMap[p.date]=p.val; });
+  const daysDatesSet=new Set(days.map(d=>d.date));
+  const peseeOnlyDates=pesees.map(p=>p.date).filter(d=>!daysDatesSet.has(d)).sort();
 
-  function isoToLabel(isoDate){
-    const [,m,d]=isoDate.split('-'); return d+'/'+m;
-  }
-  // Génère toutes les dates ISO entre firstDate et lastDate via arithmétique UTC pure
-  function dateRange(firstDate, lastDate){
-    const result=[];
-    if(!firstDate||!lastDate) return result;
-    const toMs=iso=>Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10));
-    const fromMs=ms=>{const dt=new Date(ms);const yy=dt.getUTCFullYear();const mm=String(dt.getUTCMonth()+1).padStart(2,'0');const dd=String(dt.getUTCDate()).padStart(2,'0');return yy+'-'+mm+'-'+dd;};
-    const startMs=toMs(firstDate), endMs=toMs(lastDate);
-    if(isNaN(startMs)||isNaN(endMs)||endMs<startMs) return result;
-    const DAY=86400000, MAX=730;
-    for(let ms=startMs,n=0; ms<=endMs&&n<MAX; ms+=DAY,n++) result.push(fromMs(ms));
-    return result;
-  }
-
-  // Construire l'ensemble de toutes les dates à afficher
-  const allKnownDates=new Set(days.map(d=>d.date));
-  pesees.forEach(p=>allKnownDates.add(p.date));
-  const sortedKnown=[...allKnownDates].sort();
-  const firstDate=sortedKnown[0];
-  const lastDate=sortedKnown[sortedKnown.length-1];
-
-  // Générer toutes les dates calendaires de firstDate à lastDate
-  const allHistDays=dateRange(firstDate,lastDate).map(date=>{
-    const dayEntry=days.find(dy=>dy.date===date);
-    return dayEntry ? {...dayEntry,_gap:false} : {date,label:isoToLabel(date),_gap:true};
+  // Fusion triée : days + pesées orphelines
+  const allHistDays=[...days];
+  peseeOnlyDates.forEach(date=>{
+    const [,m,d]=date.split('-');
+    const lbl=d+'/'+m;
+    const idx=allHistDays.findIndex(dy=>dy.date>date);
+    const entry={date,label:lbl,_peseeOnly:true};
+    if(idx===-1) allHistDays.push(entry);
+    else allHistDays.splice(idx,0,entry);
   });
 
   const histL=allHistDays.map(d=>d.label);
@@ -2840,32 +2824,19 @@ function renderChartPoids(s){
   const allL=[...histL,...projL];
   const totalPoints=allL.length;
 
-  // Calculer la valeur théorique pour les jours de gap par interpolation linéaire
-  // en repartant du dernier poids connu et en appliquant le déficit moyen récent
+  // Courbe théorique : valeur réelle pour les jours avec calories,
+  // valeur du dernier jour connu (ligne plate) pour les pesées orphelines
   const extPoidsHistory=allHistDays.map(d=>{
-    if(!d._gap) return s.poidsHistoryByDate[d.date]!=null?s.poidsHistoryByDate[d.date]:null;
-    // Jour calendaire sans saisie : interpoler depuis le dernier jour réel avant
-    // Trouver le précédent jour réel
-    const prevDay=days.filter(dy=>dy.date<d.date).slice(-1)[0];
-    const nextDay=days.find(dy=>dy.date>d.date);
-    if(!prevDay) return null;
-    const prevVal=s.poidsHistoryByDate[prevDay.date];
-    if(prevVal==null) return null;
-    if(!nextDay){
-      // Après le dernier jour : extrapoler avec le déficit moyen des 14 derniers jours
-      const daysDiff=(new Date(d.date)-new Date(prevDay.date))/(86400000);
-      return parseFloat((prevVal - (s.recentDeficit||s.avgDailyDeficit)*daysDiff/KCAL_PER_KG).toFixed(2));
-    }
-    // Entre deux jours réels : interpolation linéaire
-    const nextVal=s.poidsHistoryByDate[nextDay.date];
-    if(nextVal==null) return null;
-    const t=(new Date(d.date)-new Date(prevDay.date))/(new Date(nextDay.date)-new Date(prevDay.date));
-    return parseFloat((prevVal+(nextVal-prevVal)*t).toFixed(2));
+    if(!d._peseeOnly) return s.poidsHistoryByDate[d.date]!=null?s.poidsHistoryByDate[d.date]:null;
+    // Pas de données caloriques : poids constant = dernière valeur connue avant cette date
+    const lastKnown=days.filter(dy=>dy.date<=d.date).slice(-1)[0];
+    return lastKnown&&s.poidsHistoryByDate[lastKnown.date]!=null?s.poidsHistoryByDate[lastKnown.date]:null;
   });
 
   const extPoidsHistoryVelo=allHistDays.map(d=>{
-    if(!d._gap) return s.poidsHistoryVeloByDate&&s.poidsHistoryVeloByDate[d.date]!=null?s.poidsHistoryVeloByDate[d.date]:null;
-    return null; // gap : pas de données sport, laisser null
+    if(!d._peseeOnly&&s.poidsHistoryVeloByDate&&s.poidsHistoryVeloByDate[d.date]!=null)
+      return s.poidsHistoryVeloByDate[d.date];
+    return null;
   });
 
   const allDates=[...allHistDays.map(d=>d.date),...Array.from({length:s.projections.length},(_,i)=>{
@@ -2883,7 +2854,7 @@ function renderChartPoids(s){
 
   const nullHist=Array(histL.length).fill(null);
   charts['poids']=new Chart(ctx,{type:'line',data:{labels:allL,datasets:[
-    {label:'Poids théorique',data:[...extPoidsHistory,...Array(s.projections.length).fill(null)],borderColor:'#f97316',backgroundColor:'rgba(249,115,22,0.1)',fill:true,tension:0.4,pointRadius:0,borderWidth:2,spanGaps:false},
+    {label:'Poids théorique',data:[...extPoidsHistory,...Array(s.projections.length).fill(null)],borderColor:'#f97316',backgroundColor:'rgba(249,115,22,0.1)',fill:true,tension:0.4,pointRadius:0,borderWidth:2,spanGaps:true},
     {label:'Optimiste',data:[...nullHist,...s.projOptimiste],borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,0.07)',fill:'+1',tension:0.4,pointRadius:0,borderWidth:1.5,borderDash:[4,3],spanGaps:false},
     {label:'Réaliste (Hall)',data:[...nullHist,...s.projections],borderColor:'#818cf8',backgroundColor:'rgba(129,140,248,0.08)',fill:true,tension:0.4,pointRadius:0,borderWidth:2,borderDash:[6,3],spanGaps:false},
     {label:'Pessimiste',data:[...nullHist,...s.projPessimiste],borderColor:'#f43f5e',backgroundColor:'rgba(244,63,94,0.05)',fill:'-1',tension:0.4,pointRadius:0,borderWidth:1.5,borderDash:[4,3],spanGaps:false},
