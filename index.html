@@ -2316,7 +2316,7 @@ function saveData(){
     taille: tdeeTailleEl ? parseInt(tdeeTailleEl.value)||175 : 175,
     activite: tdeeActiviteEl ? parseFloat(tdeeActiviteEl.value)||1.2 : 1.2
   };
-  const data = { days, pesees, veloSessions, refs, refNextId, refCats, refCatNextId, calcItems, activePeriod, calcDate: calcDateVal, poids: getPoids(), objectif: getObjectif(), bilans, bilanUnites: window._bilanUnites||{}, tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount, conditionsActives: _conditionsActives, objectifPoids: _objectifPoids||null };
+  const data = { days, pesees, veloSessions, refs, refNextId, refCats, refCatNextId, calcItems, activePeriod, calcDate: calcDateVal, poids: getPoids(), objectif: getObjectif(), bilans, bilanUnites: window._bilanUnites||{}, tensions, tdeeParams, recettes, recetteNextId, weeklySnapshots: window._weeklySnapshots||[], usageCount, conditionsActives: _conditionsActives, objectifPoids: _objectifPoids||null, objectifPersonnalise: window._objectifPersonnalise||false };
   try {
     if (window._masterKey) {
       // Sauvegarde chiffrée
@@ -2369,6 +2369,7 @@ async function loadData(){
     if(data.usageCount) usageCount = data.usageCount;
     if(data.conditionsActives) _conditionsActives = data.conditionsActives;
     if(data.objectifPoids) _objectifPoids = data.objectifPoids;
+    if(data.objectifPersonnalise) window._objectifPersonnalise = true;
     if(data.recettes) { recettes = data.recettes; recetteNextId = data.recetteNextId || recettes.length + 1; }
     try {
       let calcRaw = localStorage.getItem(STORAGE_KEY_ENC+'_calc');
@@ -2385,7 +2386,9 @@ async function loadData(){
       }
     } catch(e){}
     if(data.poids) document.getElementById('poidsInput').value = data.poids;
-    if(data.objectif) document.getElementById('objectifInput').value = data.objectif;
+    // Ne pas restaurer data.objectif ici : il sera recalculé par syncObjectifDynamique()
+    // depuis la dernière pesée, sauf si l'objectif est personnalisé (flag _objectifPersonnalise).
+    if(data.objectifPersonnalise && data.objectif) document.getElementById('objectifInput').value = data.objectif;
     if(data.tdeeParams){
       const p = data.tdeeParams;
       const se = document.getElementById('tdeeSexe'); if(se && p.sexe) se.value = p.sexe;
@@ -8288,6 +8291,7 @@ function resetTotal(){
   window._bilanUnites = {};
   _conditionsActives = [];
   _objectifPoids = null;
+  window._objectifPersonnalise = false;
   window._savedCalcDate = null;
   const cd = document.getElementById('calcDate'); if(cd) cd.value = '';
 
@@ -8572,26 +8576,24 @@ function getTDEEMaintienPourPoids(poids){
 
 function getObjectifPourDate(dateStr){
   const today = new Date().toISOString().split('T')[0];
-  
-  // Cherche la dernière pesée réelle <= dateStr
+
+  // Cherche la dernière pesée réelle <= dateStr (commun à toutes les dates)
   const peseesBefore = pesees.filter(function(p){ return p.date <= dateStr; });
   const poidsRef = peseesBefore.length > 0 ? peseesBefore[peseesBefore.length - 1].val : getPoids();
   const tdeeRef = getTDEEMaintienPourPoids(poidsRef);
 
-  // Pour les dates futures ou aujourd'hui : conserver un objectif personnalisé si l'écart
-  // avec le TDEE actuel (calculé sur la dernière pesée) est significatif (> 50 kcal),
-  // signe que l'utilisateur a volontairement choisi un déficit/surplus.
-  if(dateStr >= today){
+  // Pour les dates futures ou aujourd'hui : préserver un objectif DÉLIBÉRÉMENT personnalisé
+  // (ex. déficit −20% appliqué via "Utiliser comme objectif") — détecté si l'écart > 50 kcal
+  // ET que l'utilisateur a explicitement posé un flag de personnalisation.
+  if(dateStr >= today && window._objectifPersonnalise){
     const objectifInput = document.getElementById('objectifInput');
     const currentObjectif = parseInt(objectifInput.value);
     if(currentObjectif && currentObjectif > 0 && Math.abs(currentObjectif - tdeeRef) > 50){
       return currentObjectif;
     }
-    // Sinon recalculer depuis la dernière pesée (TDEE de maintien)
-    return tdeeRef;
   }
-  
-  // Pour les dates passées : TDEE basé sur le poids historique
+
+  // Sinon : TDEE de maintien basé sur la dernière pesée (ou poids initial)
   return tdeeRef;
 }
 
@@ -8728,6 +8730,7 @@ function calcTDEE(){
 }
 
 function applyObjectif(kcal, btn){
+  window._objectifPersonnalise = true;
   document.getElementById('objectifInput').value = kcal;
   
   // Mettre à jour l'objectif pour tous les jours futurs et aujourd'hui
@@ -8980,18 +8983,9 @@ async function initApp() {
     });
     saveData();
   }
-  // MODIFICATION : Ne synchroniser l'objectif dynamique que si aucun objectif personnalisé n'est défini
-  // Cela permet de préserver l'objectif défini par l'utilisateur (déficit, etc.)
-  const objectifInput = document.getElementById('objectifInput');
-  const tdee = getTDEE();
-  const currentObjectif = parseInt(objectifInput.value) || tdee;
-  // Si l'objectif actuel est différent du TDEE (donc personnalisé), on ne l'écrase pas
-  if(Math.abs(currentObjectif - tdee) < 10) {
-    // L'objectif est proche du TDEE, on peut le synchroniser
-    syncObjectifDynamique();
-  }
-  // Si l'objectif est très différent du TDEE, c'est un choix délibéré de l'utilisateur (déficit/surplus)
-  // On ne touche pas à cette valeur
+  // Synchroniser l'objectif depuis la dernière pesée (ou le poids initial).
+  // getObjectifPourDate préserve l'objectif personnalisé si _objectifPersonnalise est true.
+  syncObjectifDynamique();
   if(!hasData) days = [];
   loadKcalPerKg(); // Charger le ratio kcal/kg sauvegardé
   refresh();
