@@ -8573,24 +8573,26 @@ function getTDEEMaintienPourPoids(poids){
 function getObjectifPourDate(dateStr){
   const today = new Date().toISOString().split('T')[0];
   
-  // Pour les dates futures ou aujourd'hui : utiliser l'objectif personnalisé défini par l'utilisateur
+  // Cherche la dernière pesée réelle <= dateStr
+  const peseesBefore = pesees.filter(function(p){ return p.date <= dateStr; });
+  const poidsRef = peseesBefore.length > 0 ? peseesBefore[peseesBefore.length - 1].val : getPoids();
+  const tdeeRef = getTDEEMaintienPourPoids(poidsRef);
+
+  // Pour les dates futures ou aujourd'hui : conserver un objectif personnalisé si l'écart
+  // avec le TDEE actuel (calculé sur la dernière pesée) est significatif (> 50 kcal),
+  // signe que l'utilisateur a volontairement choisi un déficit/surplus.
   if(dateStr >= today){
     const objectifInput = document.getElementById('objectifInput');
     const currentObjectif = parseInt(objectifInput.value);
-    if(currentObjectif && currentObjectif > 0){
+    if(currentObjectif && currentObjectif > 0 && Math.abs(currentObjectif - tdeeRef) > 50){
       return currentObjectif;
     }
+    // Sinon recalculer depuis la dernière pesée (TDEE de maintien)
+    return tdeeRef;
   }
   
-  // Pour les dates passées : calculer le TDEE de maintien basé sur le poids historique
-  // Cherche la dernière pesée réelle <= dateStr
-  const peseesBefore = pesees.filter(function(p){ return p.date <= dateStr; });
-  if(peseesBefore.length > 0){
-    const derniere = peseesBefore[peseesBefore.length - 1];
-    return getTDEEMaintienPourPoids(derniere.val);
-  }
-  // Sinon poids initial (poidsInput)
-  return getTDEEMaintienPourPoids(getPoids());
+  // Pour les dates passées : TDEE basé sur le poids historique
+  return tdeeRef;
 }
 
 function syncPoidsInitial(){
